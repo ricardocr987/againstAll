@@ -1,0 +1,26 @@
+{
+  "name": "againstall",
+  "version": "1.0.0",
+  "description": "Práctica Sockets, Streaming de Eventos, Colas y modularidad de Sistemas Distribuidos",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.js",
+  "type": "module",
+  "scripts": {
+    "start": "npm i && npm run build",
+    "build": "npm run clean:ts && npm run build:ts",
+    "build:ts": "tsc -p ./tsconfig.json",
+    "docker:up": "docker-compose up",
+    "start:engine": "npm i && npm run build && ./scripts/start-kafka.sh && ./scripts/create-topic.sh && node ./dist/src/AA_Engine.js",
+    "start:registry": "node ./dist/src/AA_Registry.js",
+    "start:weather": "node ./dist/src/AA_Weather.js",
+    "start:player": "node ./dist/src/AA_Player.js",
+    "start:npc": "node ./dist/src/AA_NPC.js",
+    "clean:ts": "rm -rf ./dist",
+    "clean:all": "rm -rf ./node_modules && rm -rf ./dist && rm -rf package-lock.json"
+  },
+  "devDependencies": {
+    "@types/node": "^18.8.4",
+    "typescript": "^4.8.4"
+  }
+}
