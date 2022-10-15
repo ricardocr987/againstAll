@@ -9,3 +9,4 @@ Pasos para desplegar:
 1. npm run start (npm i: instala dependencias (librerias) && npm run build: transpila el codigo de typescript a javascript)
 2. npm run start:registry (los puertos y el host estan por ahora definidos en el codigo no se introducen por consola)
 3. (En otro terminal) npm run start:player (contestas a las preguntas del cliente para crear un jugadopr) y deberia de crearse una carpeta data que tiene la informacion del jugador en un archivo
+4. Escribe end en el terminal donde estas ejecutando la instancia del jugador para matar tanto el proceso del jugador como del servidor
