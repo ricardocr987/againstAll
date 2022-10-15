@@ -20,13 +20,13 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
+    "noFallthroughCasesInSwitch": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
-    "baseUrl": "."
+    "baseUrl": ".",
   },
   "exclude": [
     "node_modules",

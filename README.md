@@ -4,9 +4,8 @@ Software necesario:
 - npm (8.15.0)
 - Docker (20.10.17)
 
-Pasos para desplegar: (La tengo que acabar ya que aun no se puede hacer nada)
+Pasos para desplegar:
 
 1. npm run start (npm i: instala dependencias (librerias) && npm run build: transpila el codigo de typescript a javascript)
-2. npm run start:*Componente a ejecutar*, por ejemplo -> npm run start:player -> Crea una instancia de un jugador (de momento esta es la idea, pero vamos viendo)
-
-la gracia de utilizar node es que puede crear atajos de comandos y personalizarlos, por tanto, se podria crear un sistema de despliegue muy sencillo.
+2. npm run start:registry (los puertos y el host estan por ahora definidos en el codigo no se introducen por consola)
+3. (En otro terminal) npm run start:player (contestas a las preguntas del cliente para crear un jugadopr) y deberia de crearse una carpeta data que tiene la informacion del jugador en un archivo
