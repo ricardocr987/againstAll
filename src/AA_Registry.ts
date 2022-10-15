@@ -72,8 +72,6 @@ export class Registry {
     }
 
     public Start() {
-        this.io.listen(this.port) // el servidor escucha el puerto 
-
         this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
@@ -107,6 +105,7 @@ export class Registry {
                         console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.connections[remoteSocket]) delete this.connections[remoteSocket]
                         socket.end()
+                        if (Object.values(this.connections).length == 0) process.exit(0) // mata proceso
                 }
 
                 const fullMessage = `[${this.players[remoteSocket].alias}]: ${message}` 
@@ -114,11 +113,12 @@ export class Registry {
                 this.sendMessage(fullMessage, socket)                  
             }) 
         })
+        this.io.listen(this.port) // el servidor escucha el puerto 
     }
 
     public sendMessage (message: string, origin: Socket) { // Manda el mensaje solo al usuario que ha hecho la conexion
         for(const socket of Object.values(this.connections)) {
-            if (socket === origin) {
+            if (socket === origin) { // para el registry queremos que solo el player reciba el mensaje de confirmacion
                 socket.write(message)
             }
         }
@@ -126,7 +126,7 @@ export class Registry {
 }
 
 function main() {
-    const PORT = 1349
+    const PORT = 1352
     new Registry(Number(PORT)).Start()
 }
 

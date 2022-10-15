@@ -58,10 +58,11 @@ export class Player {
                     socket.write(`${Events.SIGN_UP}:${this.alias}:${this.password}`)
                     break
             }
-        
+
             readline.on("line", (message) => {
+                socket.write(message) 
                 if (message === Events.END) socket.end() 
-            }) 
+              }) 
         
             socket.on("data", (data) => {
                 console.log(data) 
@@ -173,7 +174,7 @@ export class Player {
 function main() {
     const HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
     const SERVER_PORT = 1346
-    const REGISTRY_PORT = 1349
+    const REGISTRY_PORT = 1352
     
     const player = new Player(HOST, SERVER_PORT, REGISTRY_PORT)
     player.initUser()
