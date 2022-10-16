@@ -4,13 +4,22 @@ export type Coordinate = {
 }
 
 // Event types that sockets will emit
-export enum Events {
-    SIGN_IN = 'signin',
-    SIGN_UP = 'signup',
-    EDIT_PROFILE = 'editprofile',
-    END = 'end',
+export enum PlayerEvents {
+    SIGN_IN = 'SIGN_IN',
+    SIGN_UP = 'SIGN_UP',
+    EDIT_PROFILE = 'EDIT_PROFILE',
+    END = 'END',
     //MOVEMENT = 'movement',
     //DEATH = 'death'
+}
+
+export enum RegistryEvents {
+    SIGN_IN_OK = 'SIGN_IN_OK',
+    SIGN_UP_OK = 'SIGN_UP_OK',
+    EDIT_PROFILE_OK = 'EDIT_PROFILE_OK',
+    SIGN_IN_ERROR = 'SIGN_IN_ERROR',
+    SIGN_UP_ERROR = 'SIGN_UP_ERROR',
+    EDIT_PROFILE_ERROR = 'EDIT_PROFILE_ERROR',
 }
 
 export type PlayerMessage = { 

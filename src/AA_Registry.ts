@@ -2,7 +2,7 @@ import { Paths } from './paths.js'
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
-import { Events, RegistryPlayerInfo } from './types.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
 
 export class Registry {
     public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
@@ -55,20 +55,21 @@ export class Registry {
 
     public signInPlayer(player: RegistryPlayerInfo): boolean {
         if(!this.players[player.alias]) throw new Error('This alias does not exist on the database')
-        if(this.players[player.alias].password != player.password) throw new Error('The password is not correct') // no tengo claro que esto sea necesario
+        if(this.players[player.alias].password != player.password) throw new Error('The password is not correct')
 
         return true
     }
 
     public editPlayer(player: RegistryPlayerInfo) {
         if(!this.players[player.alias]) throw new Error('This alias does not exist on the database')
-        if(this.players[player.alias].password != player.password) throw new Error('The password is not correct') // no tengo claro que esto sea necesario
 
         this.players[player.alias] = player // simplemente sobreescribo los datos del player
         if(!existsSync(this.paths.dataDir))
             mkdirSync(this.paths.dataDir)
 
         writeFileSync(this.paths.dataFile('registry'), format(JSON.stringify(this.players).trim(), this.options)) 
+        
+        return true
     }
 
     public Start() {
@@ -92,25 +93,42 @@ export class Registry {
 
                 if (!this.players[remoteSocket]) this.players[remoteSocket] = playerInfo
 
+                let check = false
                 switch(event){
-                    case Events.SIGN_UP:
-                        const resp = this.registerPlayer(playerInfo)
-                        if (resp) socket.write('SUCCESSFUL SIGN UP\n')
+                    case PlayerEvents.SIGN_UP:
+                        try{
+                            check = this.registerPlayer(playerInfo)
+                        } catch(e){
+                            socket.write(`${RegistryEvents.SIGN_UP_ERROR}:${e}`)
+                        }
+                        if (check) socket.write(RegistryEvents.SIGN_UP_OK)
                         break
-                    case Events.SIGN_IN:
-                        const check = this.signInPlayer(playerInfo)
-                        if (check) socket.write('SUCCESSFUL SIGN IN\n')
+                    case PlayerEvents.SIGN_IN:
+                        try{
+                            check = this.signInPlayer(playerInfo)
+                        } catch(e){
+                            socket.write(`${RegistryEvents.SIGN_IN_ERROR}:${e}`)
+                        }
+                        if (check) socket.write(RegistryEvents.SIGN_IN_OK)
                         break
-                    case Events.END: // si el client manda el mensaje END acaba conexion
+                    case PlayerEvents.EDIT_PROFILE:
+                        try{
+                            check = this.editPlayer(playerInfo)
+                        } catch(e){
+                            socket.write(`${RegistryEvents.EDIT_PROFILE_ERROR}:${e}`)
+                        }
+                        if (check) socket.write(RegistryEvents.EDIT_PROFILE_OK)
+                        break
+                    case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
                         console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.connections[remoteSocket]) delete this.connections[remoteSocket]
                         socket.end()
-                        if (Object.values(this.connections).length == 0) process.exit(0) // mata proceso
+                        if (Object.values(this.connections).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
                 }
 
-                const fullMessage = `[${this.players[remoteSocket].alias}]: ${message}` 
-                console.log(`${remoteSocket} -> ${fullMessage}`) 
-                this.sendMessage(fullMessage, socket)                  
+                //const fullMessage = `[${this.players[remoteSocket].alias}]: ${message}` 
+                //console.log(`${remoteSocket} -> ${fullMessage}`) 
+                //this.sendMessage(fullMessage, socket)                  
             }) 
         })
         this.io.listen(this.port) // el servidor escucha el puerto 
@@ -126,7 +144,7 @@ export class Registry {
 }
 
 function main() {
-    const PORT = 1352
+    const PORT = 1364
     new Registry(Number(PORT)).Start()
 }
 

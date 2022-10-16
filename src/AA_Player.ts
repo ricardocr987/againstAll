@@ -1,12 +1,6 @@
-import { Coordinate, PlayerInfo, Events } from './types.js'
+import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import { Socket } from 'net'
-import { Interface, createInterface } from 'readline'
 import promptSync from 'prompt-sync'
-
-const readline: Interface = createInterface({
-    input: process.stdin, 
-    output: process.stdout
-})
 
 export class Player {
     public position: Coordinate
@@ -16,6 +10,7 @@ export class Player {
     public alias: string = ""
     public password: string = ""
     public answer: string = ""
+    public prompt = promptSync()
 
     constructor(
         public HOST: string,
@@ -32,11 +27,32 @@ export class Player {
     }
 
     public initUser(){
-        const prompt = promptSync();
+        while(this.answer != 'y' && this.answer != 'n'){
+            this.answer = this.prompt("Are you already registered?: [y/n]")
+        }
+        this.askUserInfo()
+    }
 
-        this.answer = prompt("Are you already registered?: [y/n]")
-        this.alias = prompt("Introduce your username: ")
-        this.password = prompt("Introduce your password: ")
+    public askUserInfo(){
+        this.alias = this.prompt("Introduce your username: ")
+        this.password = this.prompt("Introduce your password: ")
+    }
+
+    public showMenu(socket: Socket) {
+        console.log("Menu:\n 1. Edit Profile \n 2. Start a game \n 3. END")
+        this.answer = this.prompt("")
+        switch(this.answer){
+            case "1":
+                this.askUserInfo()
+                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                break
+            case "2":
+                // Conectar al engine/partida
+            case "3":
+                socket.write(PlayerEvents.END)
+                socket.end() 
+                break
+        }
     }
 
     public StartConnectionRegistry() {
@@ -47,29 +63,29 @@ export class Player {
         socket.setEncoding("utf-8") 
       
         socket.on("connect", () => {
-            console.log("Connected") 
-
             switch(this.answer){
                 case "y":
-                    // Enviamos al servidor el evento, alias y password
-                    socket.write(`${Events.SIGN_IN}:${this.alias}:${this.password}`)
+                    socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`) // Enviamos al servidor el evento, alias y password
                     break
                 case "n":
-                    socket.write(`${Events.SIGN_UP}:${this.alias}:${this.password}`)
+                    socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
                     break
             }
-
-            readline.on("line", (message) => {
-                socket.write(message) 
-                if (message === Events.END) socket.end() 
-              }) 
         
             socket.on("data", (data) => {
-                console.log(data) 
+                if(data.toString().includes("OK")){
+                    this.showMenu(socket)
+                }
+                else {
+                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    console.log(`[${event}]:${errorMessage}`)
+                    this.initUser()
+                    this.showMenu(socket)
+                }
             }) 
         }) 
       
-        socket.on("error", (err) => { throw new Error(err.message) })
+        // De momento no necesario: socket.on("error", (err) => { console.log(err.message) })
       
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso 
           console.log("Disconnected") 
@@ -86,22 +102,10 @@ export class Player {
       
         socket.on("connect", () => {
           console.log("Connected") 
-      
-          readline.question("Choose your username: ", (username) => {
-            socket.write(username) 
-            console.log(`Type any message to send it, type END to finish`)
-          }) 
-      
-          readline.on("line", (message) => {
-            socket.write(message) 
-            if (message === 'END') {
-              socket.end() 
-            }
-          }) 
-      
-          socket.on("data", (data) => {
-            console.log(data) 
-          }) 
+    
+            socket.on("data", (data) => {
+                console.log(data) 
+            }) 
         }) 
       
         socket.on("error", (err) => { throw new Error(err.message) })
@@ -172,9 +176,9 @@ export class Player {
 }
 
 function main() {
-    const HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+    const HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
     const SERVER_PORT = 1346
-    const REGISTRY_PORT = 1352
+    const REGISTRY_PORT = 1364
     
     const player = new Player(HOST, SERVER_PORT, REGISTRY_PORT)
     player.initUser()
