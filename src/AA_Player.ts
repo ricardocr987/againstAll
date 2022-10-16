@@ -64,10 +64,10 @@ export class Player {
       
         socket.on("connect", () => {
             switch(this.answer){
-                case "y":
+                case 'y':
                     socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`) // Enviamos al servidor el evento, alias y password
                     break
-                case "n":
+                case 'n':
                     socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
                     break
             }

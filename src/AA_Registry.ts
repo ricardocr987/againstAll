@@ -33,7 +33,7 @@ export class Registry {
         if(!existsSync(this.paths.dataDir)) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile('registry'), 'utf8')) // leo fichero
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
         for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
             registeredPlayers[player.alias] = player
         }
@@ -42,38 +42,38 @@ export class Registry {
     }
 
     public registerPlayer(player: RegistryPlayerInfo) { // creo perfil de player
-        if(this.players[player.alias]) throw new Error('There is already a player with the same alias')
+        if(this.players[player.alias]) throw new Error("There is already a player with the same alias")
 
         this.players[player.alias] = player
         if(!existsSync(this.paths.dataDir))
             mkdirSync(this.paths.dataDir)
 
-        writeFileSync(this.paths.dataFile('registry'), format(JSON.stringify(this.players).trim(), this.options)) // sobreescribo todo el fichero pero incluyendo al nuevo
+        writeFileSync(this.paths.dataFile("registry"), format(JSON.stringify(this.players).trim(), this.options)) // sobreescribo todo el fichero pero incluyendo al nuevo
 
         return true
     }
 
     public signInPlayer(player: RegistryPlayerInfo): boolean {
-        if(!this.players[player.alias]) throw new Error('This alias does not exist on the database')
-        if(this.players[player.alias].password != player.password) throw new Error('The password is not correct')
+        if(!this.players[player.alias]) throw new Error("This alias does not exist on the database")
+        if(this.players[player.alias].password != player.password) throw new Error("The password is not correct")
 
         return true
     }
 
     public editPlayer(player: RegistryPlayerInfo) {
-        if(!this.players[player.alias]) throw new Error('This alias does not exist on the database')
+        if(!this.players[player.alias]) throw new Error("This alias does not exist on the database")
 
         this.players[player.alias] = player // simplemente sobreescribo los datos del player
         if(!existsSync(this.paths.dataDir))
             mkdirSync(this.paths.dataDir)
 
-        writeFileSync(this.paths.dataFile('registry'), format(JSON.stringify(this.players).trim(), this.options)) 
+        writeFileSync(this.paths.dataFile("registry"), format(JSON.stringify(this.players).trim(), this.options)) 
         
         return true
     }
 
     public Start() {
-        this.io.on('connection', (socket: Socket) => {
+        this.io.on("connection", (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
             socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
@@ -120,7 +120,7 @@ export class Registry {
                         if (check) socket.write(RegistryEvents.EDIT_PROFILE_OK)
                         break
                     case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
-                        console.log('SOCKET DISCONNECTED: ' + remoteSocket)
+                        console.log("SOCKET DISCONNECTED: " + remoteSocket)
                         if (this.connections[remoteSocket]) delete this.connections[remoteSocket]
                         socket.end()
                         if (Object.values(this.connections).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
