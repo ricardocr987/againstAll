@@ -9,8 +9,7 @@ export enum PlayerEvents {
     SIGN_UP = 'SIGN_UP',
     EDIT_PROFILE = 'EDIT_PROFILE',
     END = 'END',
-    //MOVEMENT = 'movement',
-    //DEATH = 'death'
+    NEW_POSITION = 'NEW_POSITION',
 }
 
 export enum RegistryEvents {
@@ -20,6 +19,11 @@ export enum RegistryEvents {
     SIGN_IN_ERROR = 'SIGN_IN_ERROR',
     SIGN_UP_ERROR = 'SIGN_UP_ERROR',
     EDIT_PROFILE_ERROR = 'EDIT_PROFILE_ERROR',
+}
+
+export enum EngineEvents {
+    MOVEMENT_OK = 'MOVEMENT_OK',
+    MOVEMENT_ERROR = 'MOVEMENT_ERROR',
 }
 
 export type PlayerMessage = { 

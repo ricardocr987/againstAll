@@ -1,6 +1,6 @@
 import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import { Socket } from 'net'
-import promptSync from 'prompt-sync'
+import promptSync, { Prompt } from 'prompt-sync'
 
 export class Player {
     public position: Coordinate
@@ -10,7 +10,9 @@ export class Player {
     public alias: string = ""
     public password: string = ""
     public answer: string = ""
-    public prompt = promptSync()
+    public prompt: Prompt = promptSync()
+    public intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
+    public movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
 
     constructor(
         public HOST: string,
@@ -27,10 +29,10 @@ export class Player {
     }
 
     public initUser(){
-        while(this.answer != 'y' && this.answer != 'n'){
+        while(!this.intialAnswerSet.has(this.answer)){ // si no esta en el set repite la pregunta
             this.answer = this.prompt("Are you already registered?: [y/n]")
         }
-        this.askUserInfo()
+        this.askUserInfo() // creo otra funcion para reutilizarlo en otro momento
     }
 
     public askUserInfo(){
@@ -47,7 +49,7 @@ export class Player {
                 socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
                 break
             case "2":
-                // Conectar al engine/partida
+                this.StartConnectionEngine()
             case "3":
                 socket.write(PlayerEvents.END)
                 socket.end() 
@@ -60,7 +62,9 @@ export class Player {
 
         const socket = new Socket() 
         socket.connect(this.REGISTRY_PORT, this.HOST) 
-        socket.setEncoding("utf-8") 
+        socket.setEncoding("utf-8")
+
+        console.log(`Connected to Registry`) 
       
         socket.on("connect", () => {
             switch(this.answer){
@@ -85,12 +89,18 @@ export class Player {
             }) 
         }) 
       
-        // De momento no necesario: socket.on("error", (err) => { console.log(err.message) })
+        // De momento no necesario porque los errores tambien son enviados como mensajes: socket.on("error", (err) => { console.log(err.message) })
       
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso 
           console.log("Disconnected") 
           process.exit(0) // mata proceso
         }) 
+    }
+
+    public askMovement(){
+        while(!this.movementSet.has(this.answer)){
+            this.answer = this.prompt("Introduce a movement [N, S, W, E, NW, NE, SW, SE]")
+        }
     }
 
     public StartConnectionEngine() { // funcion que permite la conexion con el server engine
@@ -100,17 +110,52 @@ export class Player {
         socket.connect(this.SERVER_PORT, this.HOST) 
         socket.setEncoding("utf-8") 
       
+        console.log(`Connected to Engine`) 
+
         socket.on("connect", () => {
-          console.log("Connected") 
-    
+            this.askMovement()
+            switch(this.answer){
+                case 'N':
+                    this.moveN()
+                    break
+                case 'S':
+                    this.moveS()
+                    break
+                case 'W':
+                    this.moveW()
+                    break
+                case 'E':
+                    this.moveE()
+                    break
+                case 'NW':
+                    this.moveNW()
+                    break
+                case 'NE':
+                    this.moveNE()
+                    break
+                case 'SW':
+                    this.moveSW()
+                    break
+                case 'SE':
+                    this.moveSE()
+                    break
+            }
+
+            socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
+        
             socket.on("data", (data) => {
-                console.log(data) 
+                if(data.toString().includes("OK")){
+                    this.askMovement()
+                }
+                else {
+                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    console.log(`[${event}]:${errorMessage}`)
+                    this.askMovement()
+                }
             }) 
         }) 
       
-        socket.on("error", (err) => { throw new Error(err.message) })
-      
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso 
+        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
           console.log("Disconnected") 
           process.exit(0) // mata proceso
         }) 
