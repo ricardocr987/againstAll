@@ -5,32 +5,29 @@ export type Coordinate = {
 
 // Event types that sockets will emit
 export enum PlayerEvents {
-    SIGN_IN = 'SIGN_IN',
-    SIGN_UP = 'SIGN_UP',
-    EDIT_PROFILE = 'EDIT_PROFILE',
-    END = 'END',
-    NEW_POSITION = 'NEW_POSITION',
+    SIGN_IN = "SIGN_IN",
+    SIGN_UP = "SIGN_UP",
+    EDIT_PROFILE = "EDIT_PROFILE",
+    END = "END",
+    NEW_POSITION = "NEW_POSITION",
 }
 
 export enum RegistryEvents {
-    SIGN_IN_OK = 'SIGN_IN_OK',
-    SIGN_UP_OK = 'SIGN_UP_OK',
-    EDIT_PROFILE_OK = 'EDIT_PROFILE_OK',
-    SIGN_IN_ERROR = 'SIGN_IN_ERROR',
-    SIGN_UP_ERROR = 'SIGN_UP_ERROR',
-    EDIT_PROFILE_ERROR = 'EDIT_PROFILE_ERROR',
+    SIGN_IN_OK = "SIGN_IN_OK",
+    SIGN_UP_OK = "SIGN_UP_OK",
+    EDIT_PROFILE_OK = "EDIT_PROFILE_OK",
+    SIGN_IN_ERROR = "SIGN_IN_ERROR",
+    SIGN_UP_ERROR = "SIGN_UP_ERROR",
+    EDIT_PROFILE_ERROR = "EDIT_PROFILE_ERROR",
 }
 
 export enum EngineEvents {
-    MOVEMENT_OK = 'MOVEMENT_OK',
-    MOVEMENT_ERROR = 'MOVEMENT_ERROR',
+    MOVEMENT_OK = "MOVEMENT_OK",
+    MOVEMENT_ERROR = "MOVEMENT_ERROR",
+    DEATH = "DEATH",
+    KILL = "KILL",
+    GAME_ENDED = "GAME_ENDED"
 }
-
-export type PlayerMessage = { 
-    alias: string
-    newPosition: Coordinate
-    //timestamp
- }
 
  export type PlayerInfo = {
     alias: string

@@ -1,4 +1,4 @@
-import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
+import { Coordinate, PlayerInfo, PlayerEvents, EngineEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 
@@ -101,6 +101,32 @@ export class Player {
         while(!this.movementSet.has(this.answer)){
             this.answer = this.prompt("Introduce a movement [N, S, W, E, NW, NE, SW, SE]")
         }
+        switch(this.answer){
+            case 'N':
+                this.moveN()
+                break
+            case 'S':
+                this.moveS()
+                break
+            case 'W':
+                this.moveW()
+                break
+            case 'E':
+                this.moveE()
+                break
+            case 'NW':
+                this.moveNW()
+                break
+            case 'NE':
+                this.moveNE()
+                break
+            case 'SW':
+                this.moveSW()
+                break
+            case 'SE':
+                this.moveSE()
+                break
+        }
     }
 
     public StartConnectionEngine() { // funcion que permite la conexion con el server engine
@@ -114,44 +140,15 @@ export class Player {
 
         socket.on("connect", () => {
             this.askMovement()
-            switch(this.answer){
-                case 'N':
-                    this.moveN()
-                    break
-                case 'S':
-                    this.moveS()
-                    break
-                case 'W':
-                    this.moveW()
-                    break
-                case 'E':
-                    this.moveE()
-                    break
-                case 'NW':
-                    this.moveNW()
-                    break
-                case 'NE':
-                    this.moveNE()
-                    break
-                case 'SW':
-                    this.moveSW()
-                    break
-                case 'SE':
-                    this.moveSE()
-                    break
-            }
-
             socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
         
             socket.on("data", (data) => {
-                if(data.toString().includes("OK")){
-                    this.askMovement()
-                }
-                else {
-                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
-                    console.log(`[${event}]:${errorMessage}`)
-                    this.askMovement()
-                }
+                const [event, message, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+
+                if(event == EngineEvents.MOVEMENT_ERROR) console.log(`[${event}]:${errorMessage}`)
+                console.log(`[${event}]:${message}`)
+                this.askMovement()
+                socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
             }) 
         }) 
       
