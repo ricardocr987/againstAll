@@ -37,6 +37,11 @@ export enum EngineEvents {
     hotEffect: number
  }
 
+ export type WeatherI = {
+    temperature: number
+    city : string
+ }
+
  export type RegistryPlayerInfo = {
     alias: string
     password: string
