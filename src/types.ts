@@ -1,19 +1,42 @@
 import avro from 'avsc' 
 
-export const schema = avro.Type.forSchema({
-    "name": "record",
+export const playerStreamSchema = avro.Type.forSchema({
+    "name": "playerStreamSchema",
     "type": "record",
     "fields": [
         {
-          "name": "category",
+          "name": "event",
           "type": "string",
         },
         {
-          "name": "noise",
+          "name": "alias",
           "type": "string",
+        },
+        {
+            "name": "position",
+            "type": {
+                "type": "record",
+                "name": "Coordinate",
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "number"
+                    },
+                    {
+                        "name": "y",
+                        "type": "number"
+                    },
+                ]
+            }
         }
-      ]
-}) 
+    ]
+})
+
+export type PlayerStream = {
+    event: string,
+    alias: string,
+    position: Coordinate
+}
 
 export type Coordinate = {
     x: number

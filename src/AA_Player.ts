@@ -1,6 +1,8 @@
 import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
+import Kafka from 'node-rdkafka' 
+import { playerStreamSchema, PlayerStream } from './types' 
 
 export class Player {
     public position: Coordinate
@@ -18,7 +20,9 @@ export class Player {
         public ENGINE_HOST: string,
         public ENGINE_PORT: number,
         public REGISTRY_HOST: string,
-        public REGISTRY_PORT: number
+        public REGISTRY_PORT: number,
+        public KAFKA_HOST: string,
+        public KAFKA_PORT: number,
     ) {
         this.position = {
             x: Math.floor(Math.random() * 20) + 1, // posicion horizontal
@@ -30,12 +34,10 @@ export class Player {
     }
 
     public initUser(){
-        while(!this.intialAnswerSet.has(this.answer)){ // mientras que la respuesta no sea y/n
-            this.answer = this.prompt("Are you already registered?: [y/n]")
-        }
+        while(!this.intialAnswerSet.has(this.answer)) this.answer = this.prompt("Are you already registered?: [y/n]")
         this.askUserInfo()
-        if(this.answer === 'n') this.StartConnectionRegistry() // si no esta registrado se conecta al registry
-        if(this.answer === 'y') this.StartConnectionEngine() // si lo esta se conecta al engine directamente
+        if(this.answer === 'n') this.startConnectionRegistry() // si no esta registrado se conecta al registry
+        if(this.answer === 'y') this.startConnectionEngine() // si lo esta se conecta al engine directamente
     }
 
     public askUserInfo(){
@@ -43,12 +45,23 @@ export class Player {
         this.password = this.prompt("Introduce your password: ")
     }
 
+    public clearInfo() {
+        this.alias = ''
+        this.answer = ''
+        this.answer = ''
+    }
+
     public showMenu() {
         console.log("Menu:\n 1. Edit Profile \n 2. Start a game \n 3. END")
         this.answer = this.prompt('')
     }
 
-    public StartConnectionRegistry(fromEngine?: boolean) {
+    public endSocket(socket: Socket){
+        socket.write(PlayerEvents.END)
+        socket.end()
+    }
+
+    public startConnectionRegistry(fromEngine?: boolean) {
         console.log(`Connecting to ${this.REGISTRY_HOST}:${this.REGISTRY_PORT}`) 
 
         const socket = new Socket() 
@@ -74,15 +87,13 @@ export class Player {
                             socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
                             break
                         default: // si quiere empezar partida se desconecta del registry y se conecta al engine
-                            socket.write(PlayerEvents.END)
-                            socket.end()
+                            this.endSocket(socket)
                     }
                 }
                 else {
                     const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
                     console.log(`[${event}]:${errorMessage}`)
-                    socket.write(PlayerEvents.END)
-                    socket.end()
+                    this.endSocket(socket)
                 }
             }) 
         }) 
@@ -92,21 +103,19 @@ export class Player {
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
             switch(this.answer){
                 case '2': // si ha llegado aqui es porque el jugador quiere jugar
-                    this.StartConnectionEngine()
+                    this.startConnectionEngine()
                     break
                 case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
                     console.log("Disconnected from Registry")
                     process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
                 default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
-                    this.alias = ''
-                    this.answer = ''
-                    this.answer = ''
+                    this.clearInfo()
                     this.initUser()
             }
         }) 
     }
 
-    public StartConnectionEngine() { // funcion que permite la conexion con el server engine
+    public startConnectionEngine() { // funcion que permite la conexion con el server engine
         console.log(`Connecting to ${this.ENGINE_HOST}:${this.ENGINE_PORT}`) 
 
         const socket = new Socket() 
@@ -123,37 +132,61 @@ export class Player {
                     this.showMenu()
                     switch(this.answer){
                         case '2': 
-                            // unirse partida
+                            this.endSocket(socket)
+                            break
                         default:
-                            socket.write(PlayerEvents.END)
-                            socket.end()
+                            this.endSocket(socket)
                             break
                     }
                 }
                 else {
                     const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
                     console.log(`[${event}]:${errorMessage}`)
-                    socket.write(PlayerEvents.END)
-                    socket.end()
+                    this.endSocket(socket)
                 }
             }) 
         }) 
       
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
-          switch(this.answer){
-            case '1': // si ha llegado aqui es porque el jugador quiere jugar
-                this.StartConnectionRegistry(true)
-                break
-            case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
-                console.log("Disconnected from Engine") 
-                process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
-            default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
-                this.alias = ''
-                this.answer = ''
-                this.answer = ''
-                this.initUser()
-        }
+            switch(this.answer){
+                case '1': // si ha llegado aqui es porque el jugador quiere jugar
+                    this.startConnectionRegistry(true)
+                    break
+                case '2':
+                    this.joinGame()
+                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                    console.log("Disconnected from Engine") 
+                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
+                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos todo el proceso
+                    this.clearInfo()
+                    this.initUser()
+            }
         }) 
+    }
+
+    public joinGame() {
+        const producer = Kafka.Producer.createWriteStream({
+                'metadata.broker.list': `${this.KAFKA_HOST}:${this.KAFKA_PORT}` // check docker-compose (port)
+            }, {}, {
+                topic: 'test' // 3rd parameter is topics
+            }
+        ) 
+        
+        producer.on('error', (err) => {
+            console.error('Error in our kafka stream') 
+            console.error(err) 
+        })
+
+        this.askMovement()
+
+        const message: PlayerStream = {
+            event: PlayerEvents.NEW_POSITION,
+            alias: this.alias,
+            position: this.position
+        }
+
+        const success = producer.write(playerStreamSchema.toBuffer(message))
+        if(success) console.log(`message queued (${JSON.stringify(message)})`)
     }
 
     public askMovement(){
@@ -250,10 +283,14 @@ export class Player {
 function main() {
     const ENGINE_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
     const ENGINE_PORT = 5667
-    const REGISTRY_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+
+    const REGISTRY_HOST = "localhost"
     const REGISTRY_PORT = 6576
-    
-    const player = new Player(ENGINE_HOST, ENGINE_PORT, REGISTRY_HOST, REGISTRY_PORT)
+
+    const KAFKA_HOST = "localhost"
+    const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose
+
+    const player = new Player(ENGINE_HOST, ENGINE_PORT, REGISTRY_HOST, REGISTRY_PORT, KAFKA_HOST, KAFKA_PORT)
     player.initUser()
 }
 

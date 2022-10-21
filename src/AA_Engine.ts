@@ -1,18 +1,21 @@
 import { Server, Socket } from 'net'
 import { Paths } from './paths.js'
 import { existsSync, readFileSync } from 'fs'
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo } from './types.js'
+import Kafka from 'node-rdkafka' 
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo,playerStreamSchema } from './types.js'
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
-    public port: number
     public io: Server
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor la instancia del jugador
     public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
     public playerInfos: Record<string, PlayerInfo> = {}
 
-    constructor(port: number) {
-        this.port = port
+    constructor(        
+        public SERVER_PORT: number,
+        public KAFKA_HOST: string,
+        public KAFKA_PORT: number,
+    ) {
         this.io = new Server()
     }
 
@@ -36,7 +39,7 @@ export class EngineServer {
         socket.write(RegistryEvents.SIGN_IN_OK)
     }
 
-    public Start() {
+    public startAuthentication() {
         this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
@@ -70,13 +73,37 @@ export class EngineServer {
                 }          
             }) 
         })
-        this.io.listen(this.port) // el servidor escucha el puerto 
+        this.io.listen(this.SERVER_PORT) // el servidor escucha el puerto 
+    }
+
+    public startConsumer() {
+        const consumer = new Kafka.KafkaConsumer({
+            'group.id': 'kafka',
+            'metadata.broker.list': `${this.KAFKA_HOST}:${this.KAFKA_PORT}`, //localhost:9092',
+        }, {})
+
+        consumer.connect() 
+
+        consumer.on('ready', () => {
+            console.log('consumer ready..')
+            consumer.subscribe(["test"]) 
+            consumer.consume() 
+        }).on('data', function(data) {
+            if (data.value) console.log(`received message: ${playerStreamSchema.fromBuffer(data.value)}`) 
+        }) 
+
     }
 }
 
 function main() {
-    const PORT = 5667
-    new EngineServer(Number(PORT)).Start()
+    const SERVER_PORT = 5667
+
+    const KAFKA_HOST = "localhost"
+    const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose
+
+    const engine = new EngineServer(SERVER_PORT, KAFKA_HOST, KAFKA_PORT)
+    engine.startAuthentication()
+    engine.startConsumer()
 }
 
 main()
