@@ -1,3 +1,20 @@
+import avro from 'avsc' 
+
+export const schema = avro.Type.forSchema({
+    "name": "record",
+    "type": "record",
+    "fields": [
+        {
+          "name": "category",
+          "type": "string",
+        },
+        {
+          "name": "noise",
+          "type": "string",
+        }
+      ]
+}) 
+
 export type Coordinate = {
     x: number
     y: number

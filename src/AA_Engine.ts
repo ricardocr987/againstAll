@@ -1,107 +1,141 @@
 import { Server, Socket } from 'net'
-//import { PlayerMessage } from './types'
-import { Player } from './AA_Player.js'
+import { Paths } from './paths.js'
+import { existsSync, readFileSync } from 'fs'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo } from './types.js'
 
 export class EngineServer {
+    public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
     public port: number
     public io: Server
-    //private game: AgainstAll
-    // La idea es utilizar dos mapas:
-    public players: Record<string, Player> = {} // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor la instancia del jugador
-    public connections: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket
+    public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor la instancia del jugador
+    public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
+    public playerInfos: Record<string, PlayerInfo> = {}
 
     constructor(port: number) {
         this.port = port
         this.io = new Server()
-        //this.game = new AgainstAll()
+    }
+
+    public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
+        if(!existsSync(this.paths.dataDir)) return {}
+
+        const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
+        for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
+            registeredPlayers[player.alias] = player
+        }
+
+        return registeredPlayers
+    }
+
+    public signInPlayer(player: RegistryPlayerInfo, socket: Socket) {
+        this.registeredPlayers = this.getPlayers() // necesario para tenerlo totalmente actualizado en este punto
+        if(!this.registeredPlayers[player.alias]) throw new Error("This alias does not exist on the database")
+        if(this.registeredPlayers[player.alias].password !== player.password) throw new Error("The password is not correct")
+        
+        socket.write(RegistryEvents.SIGN_IN_OK)
     }
 
     public Start() {
-        this.io.listen(this.port) // el servidor escucha el puerto 
-
         this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
             socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
 
-            socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que decodificar
-                if (!this.connections[remoteSocket]) { // este es el primer mensaje que deberia enviar el cliente, es decir el nombre de usuario, por tanto si no esta en el mapa se almacena su informacion en el
-                    console.log(`Username ${message} set for connection ${remoteSocket}`) 
-                    this.connections[message.toString()] = socket// hay que deserializar el buffer
-                } else if (message.toString() === "END") { // si el cliente manda el mensaje END acaba conexion
-                    console.log('socket disconnected : ' + remoteSocket)
-                    if (this.players && this.players[remoteSocket]) delete this.players[remoteSocket]
-                    socket.end() 
-                } else { // envia el mensaje al resto de usuarios
-                    const fullMessage = `[${this.players[remoteSocket]}]: ${message}` 
-                    console.log(`${remoteSocket} -> ${fullMessage}`) 
-                    this.sendMessage(fullMessage, socket) 
+            socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que convertir en string .toString()                
+                const [event, alias, password] = message.toString().split(':') // creamos un vector de la respuesta del cliente
+                
+                if (!this.playerSockets[alias]) this.playerSockets[alias] = socket
+                console.log(`Received this message from the player: ${event}:${alias}:${password}`)
+
+                const registryPlayerInfo: RegistryPlayerInfo = {
+                    alias,
+                    password
                 }
+
+                switch(event){
+                    case PlayerEvents.SIGN_IN:
+                        try{
+                            this.signInPlayer(registryPlayerInfo, socket)
+                        } catch(e){
+                            socket.write(`${RegistryEvents.SIGN_IN_ERROR}:${e}`)
+                        }
+                        break
+                    case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
+                        console.log("SOCKET DISCONNECTED: " + remoteSocket)
+                        if (this.playerSockets[alias]) delete this.playerSockets[alias]
+                        socket.end()
+                        if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
+                        break
+                }          
             }) 
         })
+        this.io.listen(this.port) // el servidor escucha el puerto 
     }
-
-    public sendMessage (message: string, origin: Socket) { // Manda el mensaje a todos los jugadores menos al cliente que envia el mensaje
-        for(const socket of Object.values(this.connections)) {
-            if (socket !== origin) {
-                socket.write(message) 
-            }
-        }
-    } 
 }
 
 function main() {
-    const PORT = 1346
+    const PORT = 5667
     new EngineServer(Number(PORT)).Start()
 }
 
 main()
 
+/*
+const position: Coordinate = {
+    x: Number(positionX),
+    y: Number(positionY)
+}
 
-/* ESTO ES CODIGO DE OTROS TUTORIALES/ARTICULOS QUE NO HE INTRODUCIDO AUN
-import express from 'express'
-import { Server } from "socket.io"
-import cors from 'cors'
-import { createServer, Server as HTTPServer } from 'http'
-import { Events, PlayerMessage } from './types'
+const playerInfo: PlayerInfo = {
+    alias: alias,
+    position: position,
+    baseLevel: Number(baseLevel),
+    coldEffect: Number(coldEffect),
+    hotEffect: Number(hotEffect)
+}
 
-export class EngineServer {  
-    private _app: express.Application = express()
-    private server: HTTPServer
-    private io: Server
- 
-    constructor (
-        public port: number
-    ) {
-        this._app.use(cors())
-        this._app.options('*', cors())
-        this.server = createServer(this._app)
-        this.io = new Server(this.server)
-        this.listen()
-    }
+        socket.on("connect", () => {
+            console.log(`Connected to Registry`) 
 
-    get app (): express.Application {
-        return this._app 
-    }
+            // si se llama desde Engine es para editar el usuario, si no el usuario quiere registrarse
+            // la autenticacion (inicio sesion) la tiene que hacer engine, por tanto, el registry solo se utiliza para crear/editar una cuenta
+            // Enviamos al servidor el evento, alias y password
+            fromEngine ? 
+                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`) : 
+                socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
 
-    private listen (): void {
-        // server listening on our defined port
-        this.server.listen(this.port, () => {
-           console.log('Running server on port %s', this.port) 
+            socket.on("data", (data) => { // aqui se entra cuando el player recibe informacion desde registry
+                if(data.toString().includes("OK")){ // si el mensaje incluye un OK muestra el menu, si no es porque ha saltado un error
+                    this.showMenu()
+                    switch(this.answer){
+                        case '1':
+                            this.askUserInfo()
+                            socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                            break
+                        default: // si quiere empezar partida se desconecta del registry y se conecta al engine
+                            socket.write(PlayerEvents.END)
+                            socket.end()
+                    }
+                }
+                else {
+                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    console.log(`[${event}]:${errorMessage}`)
+                    socket.write(PlayerEvents.END)
+                    socket.end()
+                }
+            }) 
         }) 
-
-        //socket events
-        this.io.on(Events.CONNECT, (socket: any) => {
-           console.log('Connected client on port %s.', this.port) 
-           
-           socket.on(Events.MOVEMENT, (m: PlayerMessage) => {
-              console.log('[server](message): %s', JSON.stringify(m)) 
-              this.io.emit('message', m) 
-           }) 
-
-           socket.on(Events.DISCONNECT, () => {
-              console.log('Client disconnected') 
-           }) 
+        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
+            switch(this.answer){
+                case '2': // si ha llegado aqui es porque el jugador quiere jugar
+                    this.StartConnectionEngine()
+                    break
+                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                    console.log("Disconnected from Registry")
+                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
+                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
+                    this.initUser()
+            }
         }) 
-     }
-}*/
+*/

@@ -1,4 +1,4 @@
-import { Coordinate, PlayerInfo, PlayerEvents, EngineEvents } from './types.js'
+import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 
@@ -7,16 +7,17 @@ export class Player {
     public baseLevel: number
     public coldEffect: number
     public hotEffect: number
-    public alias: string = ""
-    public password: string = ""
-    public answer: string = ""
+    public alias: string = ''
+    public password: string = ''
+    public answer: string = ''
     public prompt: Prompt = promptSync()
     public intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
     public movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
 
     constructor(
-        public HOST: string,
-        public SERVER_PORT: number,
+        public ENGINE_HOST: string,
+        public ENGINE_PORT: number,
+        public REGISTRY_HOST: string,
         public REGISTRY_PORT: number
     ) {
         this.position = {
@@ -29,10 +30,12 @@ export class Player {
     }
 
     public initUser(){
-        while(!this.intialAnswerSet.has(this.answer)){ // si no esta en el set repite la pregunta
+        while(!this.intialAnswerSet.has(this.answer)){ // mientras que la respuesta no sea y/n
             this.answer = this.prompt("Are you already registered?: [y/n]")
         }
-        this.askUserInfo() // creo otra funcion para reutilizarlo en otro momento
+        this.askUserInfo()
+        if(this.answer === 'n') this.StartConnectionRegistry() // si no esta registrado se conecta al registry
+        if(this.answer === 'y') this.StartConnectionEngine() // si lo esta se conecta al engine directamente
     }
 
     public askUserInfo(){
@@ -40,66 +43,122 @@ export class Player {
         this.password = this.prompt("Introduce your password: ")
     }
 
-    public showMenu(socket: Socket) {
+    public showMenu() {
         console.log("Menu:\n 1. Edit Profile \n 2. Start a game \n 3. END")
-        this.answer = this.prompt("")
-        switch(this.answer){
-            case "1":
-                this.askUserInfo()
-                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
-                break
-            case "2":
-                this.StartConnectionEngine()
-            case "3":
-                socket.write(PlayerEvents.END)
-                socket.end() 
-                break
-        }
+        this.answer = this.prompt('')
     }
 
-    public StartConnectionRegistry() {
-        console.log(`Connecting to ${this.HOST}:${this.REGISTRY_PORT}`) 
+    public StartConnectionRegistry(fromEngine?: boolean) {
+        console.log(`Connecting to ${this.REGISTRY_HOST}:${this.REGISTRY_PORT}`) 
 
         const socket = new Socket() 
-        socket.connect(this.REGISTRY_PORT, this.HOST) 
+        socket.connect(this.REGISTRY_PORT, this.REGISTRY_HOST) 
         socket.setEncoding("utf-8")
-
-        console.log(`Connected to Registry`) 
       
         socket.on("connect", () => {
-            switch(this.answer){
-                case 'y':
-                    socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`) // Enviamos al servidor el evento, alias y password
-                    break
-                case 'n':
-                    socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
-                    break
-            }
-        
-            socket.on("data", (data) => {
-                if(data.toString().includes("OK")){
-                    this.showMenu(socket)
+            console.log(`Connected to Registry`) 
+
+            // si se llama desde Engine es para editar el usuario, si no el usuario quiere registrarse
+            // la autenticacion (inicio sesion) la tiene que hacer engine, por tanto, el registry solo se utiliza para crear/editar una cuenta
+            // Enviamos al servidor el evento, alias y password
+            fromEngine ? 
+                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`) : 
+                socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
+
+            socket.on("data", (data) => { // aqui se entra cuando el player recibe informacion desde registry
+                if(data.toString().includes("OK")){ // si el mensaje incluye un OK muestra el menu, si no es porque ha saltado un error
+                    this.showMenu()
+                    switch(this.answer){
+                        case '1':
+                            this.askUserInfo()
+                            socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                            break
+                        default: // si quiere empezar partida se desconecta del registry y se conecta al engine
+                            socket.write(PlayerEvents.END)
+                            socket.end()
+                    }
                 }
                 else {
                     const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
                     console.log(`[${event}]:${errorMessage}`)
-                    this.initUser()
-                    this.showMenu(socket)
+                    socket.write(PlayerEvents.END)
+                    socket.end()
                 }
             }) 
         }) 
       
         // De momento no necesario porque los errores tambien son enviados como mensajes: socket.on("error", (err) => { console.log(err.message) })
       
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso 
-          console.log("Disconnected") 
-          process.exit(0) // mata proceso
+        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
+            switch(this.answer){
+                case '2': // si ha llegado aqui es porque el jugador quiere jugar
+                    this.StartConnectionEngine()
+                    break
+                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                    console.log("Disconnected from Registry")
+                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
+                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
+                    this.alias = ''
+                    this.answer = ''
+                    this.answer = ''
+                    this.initUser()
+            }
+        }) 
+    }
+
+    public StartConnectionEngine() { // funcion que permite la conexion con el server engine
+        console.log(`Connecting to ${this.ENGINE_HOST}:${this.ENGINE_PORT}`) 
+
+        const socket = new Socket() 
+        socket.connect(this.ENGINE_PORT, this.ENGINE_HOST) 
+        socket.setEncoding("utf-8") 
+
+        socket.on("connect", () => {
+            console.log(`Connected to Engine`) 
+
+            socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
+        
+            socket.on("data", (data) => {
+                if(data.toString().includes("OK")){
+                    this.showMenu()
+                    switch(this.answer){
+                        case '2': 
+                            // unirse partida
+                        default:
+                            socket.write(PlayerEvents.END)
+                            socket.end()
+                            break
+                    }
+                }
+                else {
+                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    console.log(`[${event}]:${errorMessage}`)
+                    socket.write(PlayerEvents.END)
+                    socket.end()
+                }
+            }) 
+        }) 
+      
+        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
+          switch(this.answer){
+            case '1': // si ha llegado aqui es porque el jugador quiere jugar
+                this.StartConnectionRegistry(true)
+                break
+            case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                console.log("Disconnected from Engine") 
+                process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
+            default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
+                this.alias = ''
+                this.answer = ''
+                this.answer = ''
+                this.initUser()
+        }
         }) 
     }
 
     public askMovement(){
         while(!this.movementSet.has(this.answer)){
-            this.answer = this.prompt("Introduce a movement [N, S, W, E, NW, NE, SW, SE]")
+            this.answer = this.prompt("Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ")
         }
         switch(this.answer){
             case 'N':
@@ -127,35 +186,6 @@ export class Player {
                 this.moveSE()
                 break
         }
-    }
-
-    public StartConnectionEngine() { // funcion que permite la conexion con el server engine
-        console.log(`Connecting to ${this.HOST}:${this.SERVER_PORT}`) 
-
-        const socket = new Socket() 
-        socket.connect(this.SERVER_PORT, this.HOST) 
-        socket.setEncoding("utf-8") 
-      
-        console.log(`Connected to Engine`) 
-
-        socket.on("connect", () => {
-            this.askMovement()
-            socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
-        
-            socket.on("data", (data) => {
-                const [event, message, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
-
-                if(event == EngineEvents.MOVEMENT_ERROR) console.log(`[${event}]:${errorMessage}`)
-                console.log(`[${event}]:${message}`)
-                this.askMovement()
-                socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
-            }) 
-        }) 
-      
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
-          console.log("Disconnected") 
-          process.exit(0) // mata proceso
-        }) 
     }
 
     public moveN() { // si level = 0, throw error para terminar su partida y que no pueda moverse? preferible que se desconecte de la partida nada mas morir
@@ -218,105 +248,22 @@ export class Player {
 }
 
 function main() {
-    const HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
-    const SERVER_PORT = 1346
-    const REGISTRY_PORT = 1364
+    const ENGINE_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+    const ENGINE_PORT = 5667
+    const REGISTRY_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+    const REGISTRY_PORT = 6576
     
-    const player = new Player(HOST, SERVER_PORT, REGISTRY_PORT)
+    const player = new Player(ENGINE_HOST, ENGINE_PORT, REGISTRY_HOST, REGISTRY_PORT)
     player.initUser()
-    player.StartConnectionRegistry()
 }
 
 main()
 
-
-/* ESTO ES CODIGO DE OTROS TUTORIALES/ARTICULOS QUE NO HE INTRODUCIDO AUN
-// Server:
-
-const app = express() 
-
-// settings
-app.set('port', process.env.PORT || 3000) // en local se seleccionara el puerto 3000 a no ser que se defina la variable de entorno
-
-app.get("/", (req, res) => {
-    res.send("hello")
-}) 
-
-// start server
-const server = app.listen(app.get('port'), () => {
-    console.log('server on port', app.get('port'))
-}) 
-
-// WebSockets:
-
-const io = new Server<
-    ClientToServerEvents,
-    ServerToClientEvents,
-    InterServerEvents,
-    SocketData
->(server)
-
-// Server socket communication with player:
-// The events declared in the ServerToClientEvents interface are used when sending and broadcasting events:
-
-io.on("connection", (socket) => {
-    socket.emit("noArg") 
-    socket.emit("basicEmit", 1, "2", Buffer.from([3])) 
-    socket.emit("withAck", "4", (e) => {
-      // e is inferred as number
-    }) 
-  
-    // works when broadcast to all
-    io.emit("noArg") 
-  
-    // works when broadcasting to a room
-    io.to("room1").emit("basicEmit", 1, "2", Buffer.from([3])) 
-})
-
-// The ones declared in the ClientToServerEvents interface are used when receiving events:
-
-io.on("connection", (socket) => {
-    socket.on("hello", () => {
-      // ...
-    }) 
-}) 
-
-// The ones declared in the InterServerEvents interface are used for inter-server communication (added in socket.io@4.1.0):
-
-io.serverSideEmit("ping") 
-
-io.on("ping", () => {
-  // ...
-}) 
-
-// And finally, the SocketData type is used to type the socket.data attribute (added in socket.io@4.4.0):
-
-io.on("connection", (socket) => {
-    socket.data.name = "john" 
-    socket.data.age = 42 
-}) 
-
-*/
 /*
-// const player = new Player("NOMBRE", "PASSWORD")
+const [event, message, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
 
-// Client socket communication with registry:
-const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io() 
-
-// Similarly, the events declared in the ClientToServerEvents interface are used when sending events:
-
-socket.emit("hello") 
-
-// And the ones declared in ServerToClientEvents are used when receiving events:
-
-socket.on("noArg", () => {
-    // ...
-}) 
-
-socket.on("basicEmit", (a, b, c) => {
-    // a is inferred as number, b as string and c as buffer
-}) 
-
-socket.on("withAck", (d, callback) => {
-    // d is inferred as string and callback as a function that takes a number as argument
-}) */
+if(event === EngineEvents.MOVEMENT_ERROR) console.log(`[${event}]:${errorMessage}`)
+console.log(`[${event}]:${message}`)
+this.askMovement()
+socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
+*/

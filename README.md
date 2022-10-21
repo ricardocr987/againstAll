@@ -1,11 +1,21 @@
-Software necesario:
+*Software necesario:*
 
 - Node.js (16.17.1) -> Busca un tutorial para instalar nvm (node version manager) o si no quieres complicarte instala la version que tengo yo ahora
 - npm (8.15.0)
 - Docker (20.10.17)
 
-Pasos para desplegar:
+*Pasos para desplegar:*
 
 1. npm run start (npm i: instala dependencias (librerias) && npm run build: transpila el codigo de typescript a javascript)
 2. npm run start:registry (los puertos y el host estan por ahora definidos en el codigo no se introducen por consola)
 3. (En otro terminal) npm run start:player (contestas a las preguntas del cliente para crear un jugadopr) y deberia de crearse una carpeta data que tiene la informacion del jugador en un archivo
+
+*Flow del programa (Player):*
+
+1. "Are you already registered?: [y/n]"
+    - y: Conecta con Engine directamente porque la autenticacion se hace alli
+        - to-do: manejar la situacion de que el usuario se ha equivocado y aun no se ha registrado 
+    - n: Conecta con Registry para registrar usuario y dar la opcion de edicion del perfil
+
+    to-do: Si el usuario ha dicho que y, pero quiere editar perfil
+

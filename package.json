@@ -30,6 +30,8 @@
     "typescript": "^4.8.4"
   },
   "dependencies": {
+    "avsc": "^5.7.6",
+    "node-rdkafka": "^2.14.0",
     "prompt-sync": "^4.2.0"
   }
 }
