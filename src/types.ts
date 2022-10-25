@@ -20,23 +20,17 @@ export const playerStreamSchema = avro.Type.forSchema({
                 "fields": [
                     {
                         "name": "x",
-                        "type": "number"
+                        "type": "int"
                     },
                     {
                         "name": "y",
-                        "type": "number"
+                        "type": "int"
                     },
                 ]
             }
         }
     ]
 })
-
-export type PlayerStream = {
-    event: string,
-    alias: string,
-    position: Coordinate
-}
 
 export type Coordinate = {
     x: number
@@ -58,7 +52,7 @@ export enum RegistryEvents {
     EDIT_PROFILE_OK = "EDIT_PROFILE_OK",
     SIGN_IN_ERROR = "SIGN_IN_ERROR",
     SIGN_UP_ERROR = "SIGN_UP_ERROR",
-    EDIT_PROFILE_ERROR = "EDIT_PROFILE_ERROR",
+    EDIT_PROFILE_ERROR = "EDIT_PROFILE_ERROR"
 }
 
 export enum EngineEvents {
@@ -69,35 +63,30 @@ export enum EngineEvents {
     GAME_ENDED = "GAME_ENDED"
 }
 
- export type PlayerInfo = {
+export type PlayerInfo = {
     alias: string
     position: Coordinate
     baseLevel: number
     coldEffect: number
     hotEffect: number
- }
+}
 
- export type RegistryPlayerInfo = {
+export type RegistryPlayerInfo = {
     alias: string
     password: string
- }
-
-/*
-export interface ServerToClientEvents {
-    noArg: () => void 
-    basicEmit: (a: number, b: string, c: Buffer) => void 
-    withAck: (d: string, callback: (e: number) => void) => void 
 }
 
-export interface ClientToServerEvents {
-    hello: () => void 
+export type UnionStream = PlayerStream | EngineStream
+
+export type PlayerStream = {
+    event: string
+    alias: string
+    position: Coordinate
+    sessionId: number
 }
 
-export interface InterServerEvents {
-    ping: () => void 
+export type EngineStream = {
+    engine: string
+    alias: string
+    position: Coordinate
 }
-
-export interface SocketData {
-    name: string 
-    age: number 
-}*/

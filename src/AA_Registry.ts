@@ -111,7 +111,7 @@ export class Registry {
 }
 
 function main() {
-    const PORT = 6576
+    const PORT = 6579
     new Registry(Number(PORT)).Start()
 }
 

@@ -1,8 +1,8 @@
 import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
-import Kafka from 'node-rdkafka' 
-import { playerStreamSchema, PlayerStream } from './types' 
+import { KafkaUtil } from './kafka.js'
+//import { playerStreamSchema, PlayerStream } from './types.js' 
 
 export class Player {
     public position: Coordinate
@@ -74,9 +74,13 @@ export class Player {
             // si se llama desde Engine es para editar el usuario, si no el usuario quiere registrarse
             // la autenticacion (inicio sesion) la tiene que hacer engine, por tanto, el registry solo se utiliza para crear/editar una cuenta
             // Enviamos al servidor el evento, alias y password
-            fromEngine ? 
-                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`) : 
+            if(fromEngine){
+                this.askUserInfo()
+                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+            }
+            else {
                 socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
+            }
 
             socket.on("data", (data) => { // aqui se entra cuando el player recibe informacion desde registry
                 if(data.toString().includes("OK")){ // si el mensaje incluye un OK muestra el menu, si no es porque ha saltado un error
@@ -103,7 +107,7 @@ export class Player {
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
             switch(this.answer){
                 case '2': // si ha llegado aqui es porque el jugador quiere jugar
-                    this.startConnectionEngine()
+                    this.startConnectionEngine(true)
                     break
                 case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
                     console.log("Disconnected from Registry")
@@ -115,7 +119,7 @@ export class Player {
         }) 
     }
 
-    public startConnectionEngine() { // funcion que permite la conexion con el server engine
+    public startConnectionEngine(fromRegistry?: boolean) { // funcion que permite la conexion con el server engine
         console.log(`Connecting to ${this.ENGINE_HOST}:${this.ENGINE_PORT}`) 
 
         const socket = new Socket() 
@@ -125,7 +129,13 @@ export class Player {
         socket.on("connect", () => {
             console.log(`Connected to Engine`) 
 
-            socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
+            if(fromRegistry){
+                this.answer = '2'
+                this.endSocket(socket)
+            }
+            else {
+                socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
+            }
         
             socket.on("data", (data) => {
                 if(data.toString().includes("OK")){
@@ -149,7 +159,7 @@ export class Player {
       
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
             switch(this.answer){
-                case '1': // si ha llegado aqui es porque el jugador quiere jugar
+                case '1': // si ha llegado aqui es porque el jugador quiere editar perfil
                     this.startConnectionRegistry(true)
                     break
                 case '2':
@@ -165,28 +175,18 @@ export class Player {
     }
 
     public joinGame() {
-        const producer = Kafka.Producer.createWriteStream({
-                'metadata.broker.list': `${this.KAFKA_HOST}:${this.KAFKA_PORT}` // check docker-compose (port)
-            }, {}, {
-                topic: 'test' // 3rd parameter is topics
-            }
-        ) 
-        
-        producer.on('error', (err) => {
-            console.error('Error in our kafka stream') 
-            console.error(err) 
-        })
 
-        this.askMovement()
+    }
 
-        const message: PlayerStream = {
-            event: PlayerEvents.NEW_POSITION,
-            alias: this.alias,
-            position: this.position
+    public startKafka() {
+        const kafka = new KafkaUtil(this.alias, 'player', ['map'])
+        try {
+            kafka.startProducer()
+            kafka.startConsumer()
         }
-
-        const success = producer.write(playerStreamSchema.toBuffer(message))
-        if(success) console.log(`message queued (${JSON.stringify(message)})`)
+        catch(e){
+            console.log(e)
+        }
     }
 
     public askMovement(){
@@ -282,13 +282,13 @@ export class Player {
 
 function main() {
     const ENGINE_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
-    const ENGINE_PORT = 5667
+    const ENGINE_PORT = 5670
 
     const REGISTRY_HOST = "localhost"
-    const REGISTRY_PORT = 6576
+    const REGISTRY_PORT = 6579
 
     const KAFKA_HOST = "localhost"
-    const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose
+    const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose (KAFKA_LISTENERS)
 
     const player = new Player(ENGINE_HOST, ENGINE_PORT, REGISTRY_HOST, REGISTRY_PORT, KAFKA_HOST, KAFKA_PORT)
     player.initUser()

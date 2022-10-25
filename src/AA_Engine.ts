@@ -1,8 +1,7 @@
 import { Server, Socket } from 'net'
 import { Paths } from './paths.js'
 import { existsSync, readFileSync } from 'fs'
-import Kafka from 'node-rdkafka' 
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo,playerStreamSchema } from './types.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo } from './types.js'
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
@@ -76,93 +75,43 @@ export class EngineServer {
         this.io.listen(this.SERVER_PORT) // el servidor escucha el puerto 
     }
 
+    public newGame() {
+        // la partida empezara cuando se unan x jugadores o se introduzca algo por consola durante la ejecucion del engine (aqui manda mensaje a todos los jugadores)
+        // cuando se inicia partida se deberia cerrar el socket que permite la autenticacion o activar un booleano que no permita unirse a la partida cuando esta este activada
+
+        // el consumer y producer estaran activas durante el tiempo que este la partida en espera, si el jugador se intenta mover el engine tiene que enviar un mensaje avisandole de que aun no ha empezado
+
+        // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
+
+    }
+
     public startConsumer() {
-        const consumer = new Kafka.KafkaConsumer({
-            'group.id': 'kafka',
-            'metadata.broker.list': `${this.KAFKA_HOST}:${this.KAFKA_PORT}`, //localhost:9092',
-        }, {})
 
-        consumer.connect() 
+    }
 
-        consumer.on('ready', () => {
-            console.log('consumer ready..')
-            consumer.subscribe(["test"]) 
-            consumer.consume() 
-        }).on('data', function(data) {
-            if (data.value) console.log(`received message: ${playerStreamSchema.fromBuffer(data.value)}`) 
-        }) 
+    public startProducer() {
 
+/*
+        this.askMovement()
+
+        const message: PlayerStream = {
+            event: PlayerEvents.NEW_POSITION,
+            alias: this.alias,
+            position: this.position
+        }
+*/
     }
 }
 
 function main() {
-    const SERVER_PORT = 5667
+    const SERVER_PORT = 5670
 
     const KAFKA_HOST = "localhost"
     const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose
 
     const engine = new EngineServer(SERVER_PORT, KAFKA_HOST, KAFKA_PORT)
     engine.startAuthentication()
-    engine.startConsumer()
+    engine.newGame()
 }
 
 main()
-
-/*
-const position: Coordinate = {
-    x: Number(positionX),
-    y: Number(positionY)
-}
-
-const playerInfo: PlayerInfo = {
-    alias: alias,
-    position: position,
-    baseLevel: Number(baseLevel),
-    coldEffect: Number(coldEffect),
-    hotEffect: Number(hotEffect)
-}
-
-        socket.on("connect", () => {
-            console.log(`Connected to Registry`) 
-
-            // si se llama desde Engine es para editar el usuario, si no el usuario quiere registrarse
-            // la autenticacion (inicio sesion) la tiene que hacer engine, por tanto, el registry solo se utiliza para crear/editar una cuenta
-            // Enviamos al servidor el evento, alias y password
-            fromEngine ? 
-                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`) : 
-                socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
-
-            socket.on("data", (data) => { // aqui se entra cuando el player recibe informacion desde registry
-                if(data.toString().includes("OK")){ // si el mensaje incluye un OK muestra el menu, si no es porque ha saltado un error
-                    this.showMenu()
-                    switch(this.answer){
-                        case '1':
-                            this.askUserInfo()
-                            socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
-                            break
-                        default: // si quiere empezar partida se desconecta del registry y se conecta al engine
-                            socket.write(PlayerEvents.END)
-                            socket.end()
-                    }
-                }
-                else {
-                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
-                    console.log(`[${event}]:${errorMessage}`)
-                    socket.write(PlayerEvents.END)
-                    socket.end()
-                }
-            }) 
-        }) 
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
-            switch(this.answer){
-                case '2': // si ha llegado aqui es porque el jugador quiere jugar
-                    this.StartConnectionEngine()
-                    break
-                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
-                    console.log("Disconnected from Registry")
-                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
-                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
-                    this.initUser()
-            }
-        }) 
-*/
