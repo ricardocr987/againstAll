@@ -179,7 +179,7 @@ export class Player {
     }
 
     public startKafka() {
-        const kafka = new KafkaUtil(this.alias, 'player', ['map'])
+        const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages')
         try {
             kafka.startProducer()
             kafka.startConsumer()

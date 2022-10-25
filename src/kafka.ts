@@ -7,12 +7,12 @@ export class KafkaUtil {
     public producer: Producer // Producers are those client applications that publish (write) events to Kafka
     public consumerClient: Kafka
     public consumer: Consumer
-    public topics: string[]
+    public topic: string
 
     constructor(
         clientId: string,
         clientType: string,
-        topics: string[]
+        topic: string // es al que se va a suscribir el consumidor, ie: player se suscribira al topic engineMessages y engine al de playerMessages
     ){
         this.producerClient = new Kafka({
             ...kafkaConfig, // meto las propiedades de la variable en el record
@@ -21,12 +21,12 @@ export class KafkaUtil {
         this.producer = this.producerClient.producer()
 
         this.consumerClient = new Kafka({
-            ...kafkaConfig, // meto las propiedades de la variable en el record
+            ...kafkaConfig,
             clientId: `${clientType}:${clientId}:consumer`,
         })
         this.consumer = this.consumerClient.consumer({ groupId: `${clientType}` })
 
-        this.topics = topics
+        this.topic = topic
     }
 
     public async startProducer(){
@@ -36,9 +36,7 @@ export class KafkaUtil {
     public async startConsumer(){
         await this.consumer.connect()
 
-        for(const topic of this.topics){
-            await this.consumer.subscribe({ topic: `${topic}`, fromBeginning: true })
-        }
+        await this.consumer.subscribe({ topic: `${this.topic}`, fromBeginning: true })
 
         await this.consumer.run({
             eachMessage: async ({ topic, partition, message }) => {
@@ -64,11 +62,22 @@ export class KafkaUtil {
             Event value: "Made a payment of $200 to Bob"
             Event timestamp: "Jun. 25, 2020 at 2:06 p.m."
     */
-    public async sendRecord(messages: Message[]) {
-        await this.producer.send({
-            topic: `${this.topics[0]}`, // ajustar esto
-            messages: messages,
-        })
+    public async sendRecord(event: UnionStream) {
+        const buffer = Buffer.from(JSON.stringify(event))
+        const messages: Message[] = []
+        messages.push({ value: buffer }) // esto puede ser utili para especificar headers, timestamp, partition, etc.
+
+        if(this.isPlayerStream(event)) 
+            await this.producer.send({
+                topic: 'playerMessages',
+                messages: messages,
+            })
+
+        if(this.isEngineStream(event))
+            await this.producer.send({
+                topic: 'engineMessages',
+                messages: messages,
+            })
     }
 
     public isPlayerStream(stream: UnionStream): stream is PlayerStream {
@@ -79,8 +88,3 @@ export class KafkaUtil {
         return (stream as EngineStream).engine !== undefined
     }
 }
-
-/*
-    public sendRecord(event: UnionStream, callback = () => {}) {
-        const buffer = Buffer.from(JSON.stringify(event)) hay que enviar a send record este buffer
-*/
