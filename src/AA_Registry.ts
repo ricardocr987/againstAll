@@ -43,11 +43,12 @@ export class Registry {
     public registerPlayer(player: RegistryPlayerInfo, socket: Socket) { // creo perfil de player
         if(this.registeredPlayers[player.alias]) throw new Error("There is already a player with the same alias")
 
-        socket.write(RegistryEvents.SIGN_UP_OK)
+        socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
 
-        this.registeredPlayers[player.alias] = player
-        if(!existsSync(this.paths.dataDir))
-            mkdirSync(this.paths.dataDir)
+        this.registeredPlayers[player.alias] = player // registeredPlayers es una variable clave valor, la clave es el alias del jugador, y el valor es toda la informacion del jugador
+        // esta linea almacena la informacion del nuevo jugador en el mapa
+        if(!existsSync(this.paths.dataDir)) // si no existe la carpeta data ...
+            mkdirSync(this.paths.dataDir) // ... la crea
 
         writeFileSync(this.paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
     }
