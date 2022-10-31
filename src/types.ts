@@ -76,6 +76,17 @@ export type RegistryPlayerInfo = {
     password: string
 }
 
+export type WeatherInfo = {
+    num: number
+    city: string
+    temperature: number
+}
+
+export type WeatherI = {
+    num: number
+    city: string
+}
+
 export type UnionStream = PlayerStream | EngineStream
 
 export type PlayerStream = {
