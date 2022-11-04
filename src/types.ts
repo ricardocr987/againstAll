@@ -68,6 +68,11 @@ export enum WeatherEvents{
     ASK_ERROR = "ASK_ERROR"
 }
 
+export enum NpcEvents{
+    END = "END",
+    SING_IN = "SING_IN"
+}
+
 export type PlayerInfo = {
     alias: string
     position: Coordinate
@@ -79,6 +84,11 @@ export type PlayerInfo = {
 export type RegistryPlayerInfo = {
     alias: string
     password: string
+}
+
+export type NpcInfo = {
+    alias: number
+    level: number
 }
 
 export type WeatherI = {
