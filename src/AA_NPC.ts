@@ -1,6 +1,5 @@
 import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
 import promptSync, { Prompt } from 'prompt-sync'
-import { KafkaUtil } from './kafka.js'
 
 
 export class NPC{

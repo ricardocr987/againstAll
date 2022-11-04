@@ -1,8 +1,8 @@
 import { Paths } from './paths.js'
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
-import { WeatherInfo, WeatherI } from './types.js'
+import { WeatherInfo, WeatherI, WeatherEvents } from './types.js'
 
 
 const options: Options = {
@@ -33,18 +33,22 @@ export class Weather{
         this.io = new Server()
         this.num = 0
         this.city = ''
-        this.temperature = Math.random()*20
+        this.temperature = 0
     }
 
     public getWeather(): Record<string, WeatherI> {
+        this.num = Math.floor(Math.random()*11)
+        //Buscar en el json la ciudad correspondiente al num aleatorio
 
         if(!existsSync(this.paths.dataDir)) return {}// si no existe la carpeta data ...
 
-        const weathers: Record<number, WeatherI> = {}
-        const weather1: Record<number, WeatherI>  = JSON.parse(readFileSync(this.paths.dataFile("eather"), 'utf8'))
+        const weathers: Record<number, WeatherInfo> = {}
+        const weather1: Record<number, WeatherInfo>  = JSON.parse(readFileSync(this.paths.dataFile("weather"), 'utf8'))
         for(const weather of Object.values(weather1)){
             weathers[weather.num] = weather
         }
+
+        this.temperature = Math.floor(Math.random()* (Math.floor(10) - Math.ceil(-10)) + Math.ceil(-10))
 
         return weathers
     }
@@ -64,23 +68,23 @@ export class Weather{
             socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
         
             socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que decodificar, para convertirlo en string .toString()
-                const [num, city] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
+                const [event, alias] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
                 
-                const weatherInfo: WeatherI = { 
+               /* const weatherInfo: WeatherInfo = { 
                     num,
-                    city
+                    city,
+                    temperature = Math.random()*20
                 }
-
-                
-                let check = false
-
-                try{
-                    check = this.getTemperature(weatherInfo)
-                }catch(e){
-                    //mandar error
+                */
+                switch(event){
+                    case WeatherEvents.ASK:
+                        try{
+                            this.getWeather()
+                        }catch(e){
+                            socket.write(`${WeatherEvents.ASK_ERROR}:${e}`)
+                        }
+                        break
                 }
-
-
             })
         })
         this.io.listen(this.port) // el servidor escucha el puerto 
