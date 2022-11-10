@@ -1,13 +1,18 @@
 import { Kafka, Producer, Message, Consumer } from "kafkajs" 
-import { EngineStream, PlayerStream, UnionStream } from './types.js'
+import { EngineStream, PlayerStream, UnionStream, KafkaMessage } from './types.js'
 import { kafkaConfig } from './config.js'
 
+// como tanto engine como player ralizan una comunicacion bidireccional, es decir que ambos son productores y consumidores al mismo tiempo
+// he pensado que habria menos codigo si estandarizo todo lo de kafka en una unica clase que lo hiciera practicamente todo
 export class KafkaUtil {
     public producerClient: Kafka
     public producer: Producer // Producers are those client applications that publish (write) events to Kafka
+    
     public consumerClient: Kafka
     public consumer: Consumer
+    
     public topic: string
+    public messages: KafkaMessage[] = []
 
     constructor(
         clientId: string,
@@ -35,24 +40,18 @@ export class KafkaUtil {
 
     public async startConsumer(){
         await this.consumer.connect()
+        await this.consumer.subscribe({ topic: `${this.topic}`, /* fromBeginning: true }*/ })
+    }
 
-        await this.consumer.subscribe({ topic: `${this.topic}`, fromBeginning: true })
-
-        await this.consumer.run({
-            eachMessage: async ({ topic, partition, message }) => {
-                if(message.value){
-                    console.log({
-                        topic,
-                        partition,
-                        offset: message.offset,
-                        value: message.value.toString(),
-                    })
-                }
-                else {
-                    console.log("Message value null") // throw error?
-                }
-            },
-        })
+    public async consumeMessages() {
+        await this.consumer.run({ eachMessage: async (payload) => { 
+            this.messages.push({
+                ...payload, // raw message from kafka
+                processed: false // flag para saber si un evento se ha procesado o no
+            })
+        }}) // almaceno todos los mensaje que recibe el consumidor
+        //await delay(5000)
+        //this.consumer.disconnect()
     }
 
     /*
@@ -65,7 +64,7 @@ export class KafkaUtil {
     public async sendRecord(event: UnionStream) {
         const buffer = Buffer.from(JSON.stringify(event))
         const messages: Message[] = []
-        messages.push({ value: buffer }) // esto puede ser utili para especificar headers, timestamp, partition, etc.
+        messages.push({ value: buffer }) // esto puede ser util para especificar headers, timestamp, partition, etc.
 
         if(this.isPlayerStream(event)) 
             await this.producer.send({
@@ -81,10 +80,14 @@ export class KafkaUtil {
     }
 
     public isPlayerStream(stream: UnionStream): stream is PlayerStream {
-        return (stream as PlayerStream).alias !== undefined
+        return (stream as PlayerStream).playerInfo !== undefined
     }
 
     public isEngineStream(stream: UnionStream): stream is EngineStream {
-        return (stream as EngineStream).engine !== undefined
+        return (stream as EngineStream).playerAlias !== undefined
     }
 }
+
+/*function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}*/

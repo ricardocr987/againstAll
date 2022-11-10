@@ -1,14 +1,17 @@
 import { Server, Socket } from 'net'
 import { Paths } from './paths.js'
 import { existsSync, readFileSync } from 'fs'
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo } from './types.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents } from './types.js'
+import { KafkaUtil } from './kafka.js'
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
     public io: Server
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor la instancia del jugador
     public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
-    public playerInfos: Record<string, PlayerInfo> = {}
+    public connectedPlayers: Record<string, PlayerInfo> = {}
+    public gameStarted: boolean = false
+    public map: string // es un simple string, ejemplo: " : : riki: M: : ..." -> significaria que en la casilla [0,2] esta el jugador riki, en la casilla [0,3] hay una mina y en los espacios en blanco nada
 
     constructor(        
         public SERVER_PORT: number,
@@ -16,6 +19,17 @@ export class EngineServer {
         public KAFKA_PORT: number,
     ) {
         this.io = new Server()
+        this.map = this.getEmptyMap()
+    }
+
+    public getEmptyMap(): string{
+        let map: string = ''
+        for (let i = 0; i < 19; i++) { 
+            for (let i = 0; i < 19; i++) { 
+                map += ' :' // cada : separa una coordenada, un espacio es que esta vacia
+            }
+        }
+        return map
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
@@ -75,7 +89,26 @@ export class EngineServer {
         this.io.listen(this.SERVER_PORT) // el servidor escucha el puerto 
     }
 
+    public startKafka(): KafkaUtil {
+        const kafka = new KafkaUtil('server', 'engine', 'playerMessages')
+        try {
+            kafka.startProducer()
+            kafka.startConsumer()
+        }
+        catch(e){
+            console.log(e)
+        }
+        return kafka
+    }
+
     public newGame() {
+        const kafka = this.startKafka()
+
+        while(!this.gameStarted) {
+            this.waitToStart(kafka)
+        }
+
+        console.log("THE GAME HAS STARTED!")
         // la partida empezara cuando se unan x jugadores o se introduzca algo por consola durante la ejecucion del engine (aqui manda mensaje a todos los jugadores)
         // cuando se inicia partida se deberia cerrar el socket que permite la autenticacion o activar un booleano que no permita unirse a la partida cuando esta este activada
 
@@ -85,21 +118,51 @@ export class EngineServer {
 
     }
 
-    public startConsumer() {
+    public waitToStart(kafka: KafkaUtil) { // si no se unen 5 jugadores deberia empezar a los 0,8 
+        // minutos se empieza la partida con los jugadores que se hayan unido
+        setTimeout(() => {
+            if(Object.keys(this.connectedPlayers).length === 5){
+                this.gameStarted = true
+            }
+    
+            this.processMessages(kafka)
+          }, 50000)
 
+        this.gameStarted = true
     }
 
-    public startProducer() {
+    public processMessages(kafka: KafkaUtil){
+        for(const message of kafka.messages){
+            if (message.processed) continue // quizas seria mejor eliminar los mensajes ya procesador por eficiencia
 
-/*
-        this.askMovement()
-
-        const message: PlayerStream = {
-            event: PlayerEvents.NEW_POSITION,
-            alias: this.alias,
-            position: this.position
+            if(message.message.value) {
+                const parsedMessage: PlayerStream = JSON.parse(message.message.value.toString())
+                switch (parsedMessage.event){
+                    case PlayerEvents.REQUEST_TO_JOIN:
+                        if (!this.gameStarted) {
+                            this.connectedPlayers[parsedMessage.playerInfo.alias] = parsedMessage.playerInfo
+                            kafka.sendRecord({
+                                event: EngineEvents.PLAYER_CONNECTED_OK,
+                                playerAlias: `${parsedMessage.playerInfo.alias}`
+                            })
+                            console.log(`Player ${parsedMessage.playerInfo.alias} connected to the waitlist`)
+                        }
+                        else {
+                            kafka.sendRecord({
+                                event: EngineEvents.PLAYER_CONNECTED_ERROR,
+                                playerAlias: `${parsedMessage.playerInfo.alias}`
+                            })
+                        }
+                        break
+                        
+                    
+                }
+                message.processed = true
+            }
+            else {
+                console.log("Error: Received a undefined message")
+            }
         }
-*/
     }
 }
 

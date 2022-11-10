@@ -33,6 +33,7 @@
   "dependencies": {
     "avsc": "^5.7.6",
     "kafkajs": "^2.2.2",
-    "prompt-sync": "^4.2.0"
+    "prompt-sync": "^4.2.0",
+    "superstruct": "^0.16.6"
   }
 }

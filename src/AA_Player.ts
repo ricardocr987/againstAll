@@ -1,4 +1,4 @@
-import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
+import { Coordinate, PlayerInfo, PlayerEvents, PlayerStream, KafkaMessage, EngineStream, EngineEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 import { KafkaUtil } from './kafka.js'
@@ -15,6 +15,8 @@ export class Player {
     public prompt: Prompt = promptSync()
     public intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
     public movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
+    public startedGame = false
+    public finishedGame = false
 
     constructor(
         public ENGINE_HOST: string,
@@ -52,7 +54,7 @@ export class Player {
     }
 
     public showMenu() {
-        console.log("Menu:\n 1. Edit Profile \n 2. Start a game \n 3. END")
+        console.log("Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END")
         this.answer = this.prompt('')
     }
 
@@ -102,8 +104,6 @@ export class Player {
             }) 
         }) 
       
-        // De momento no necesario porque los errores tambien son enviados como mensajes: socket.on("error", (err) => { console.log(err.message) })
-      
         socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
             switch(this.answer){
                 case '2': // si ha llegado aqui es porque el jugador quiere jugar
@@ -129,8 +129,8 @@ export class Player {
         socket.on("connect", () => {
             console.log(`Connected to Engine`) 
 
-            if(fromRegistry){
-                this.answer = '2'
+            if(fromRegistry){ // esto es necesario para llamar joinGame() cuando el usuario viene de registrarse sin tener que pasar por el proceso del menu, mejorar!
+                this.answer = '2' // esta variable ya deberia de ser '2' pero me gustaria comprobarlo
                 this.endSocket(socket)
             }
             else {
@@ -174,24 +174,91 @@ export class Player {
         }) 
     }
 
-    public joinGame() {
+    public async joinGame() {
+        const kafka = this.startKafka()
 
+        while(!this.startedGame) {
+            console.log("Wait to start playing...")
+            let check = this.prompt('')
+            if (check) console.log("Game has not started yet") // esto deberia contestarlo engine
+        }
+
+        console.log("THE GAME HAS STARTED!")
+
+        while(!this.finishedGame) { // mientras la partida siga activa....
+            this.askMovement()
+
+            kafka.sendRecord({
+                event: PlayerEvents.NEW_POSITION,
+                playerInfo: this.getPlayerInfo()
+            })
+
+            this.processMessages(kafka.messages)
+        }
     }
 
-    public startKafka() {
+    public startKafka(): KafkaUtil {
         const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages')
         try {
             kafka.startProducer()
             kafka.startConsumer()
+            const event: PlayerStream = { // primer mensaje del jugador al engine para solicitar unirse a la partida
+                event: PlayerEvents.REQUEST_TO_JOIN,
+                playerInfo: this.getPlayerInfo()
+            }
+            kafka.sendRecord(event)
         }
         catch(e){
             console.log(e)
+        }
+        return kafka
+    }
+
+    public processMessages(messages: KafkaMessage[]){
+        for(const message of messages){
+            if (message.processed) continue // quizas seria mejor eliminar los mensajes ya procesador por eficiencia
+
+            if(message.message.value) {
+                const parsedMessage: EngineStream = JSON.parse(message.message.value.toString())
+                switch (parsedMessage.event){
+                    case EngineEvents.DEATH:
+                        this.finishedGame = true
+                        console.log(parsedMessage.map) // mostrar mapa bonito
+                        console.log('You lost')
+                        break
+                    case EngineEvents.KILL:
+                        console.log(parsedMessage.map)
+                        console.log('You have killed someone')
+                        break
+                    case EngineEvents.LEVEL_UP:
+                        console.log('You have eaten food and leveled up')
+                    case EngineEvents.GAME_ENDED:
+                        this.finishedGame = true
+                        console.log('The game has ended')
+                        break
+                }
+                message.processed = true
+            }
+            else {
+                console.log("Error: Received a undefined message")
+            }
+        }
+    }
+
+    public getPlayerInfo(): PlayerInfo {
+        return {
+            alias: this.alias,
+            position: this.position,
+            baseLevel: this.baseLevel,
+            coldEffect: this.coldEffect,
+            hotEffect: this.hotEffect,
         }
     }
 
     public askMovement(){
         while(!this.movementSet.has(this.answer)){
-            this.answer = this.prompt("Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ")
+            console.log("Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ")
+            this.answer = this.prompt("")
         }
         switch(this.answer){
             case 'N':
@@ -257,24 +324,6 @@ export class Player {
         this.position.y + 1
     }
 
-    public get level(): number {
-        return this.baseLevel
-    }
-
-    public get username(): string {
-        return this.alias
-    }
-
-    public get player(): PlayerInfo {
-        return { 
-            alias: this.alias,
-            position: this.position,
-            baseLevel: this.baseLevel,
-            coldEffect: this.coldEffect,
-            hotEffect: this.hotEffect
-        }
-    }
-
     public modifyLevel(amount: number) {
         this.baseLevel += amount
     }
@@ -295,12 +344,3 @@ function main() {
 }
 
 main()
-
-/*
-const [event, message, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
-
-if(event === EngineEvents.MOVEMENT_ERROR) console.log(`[${event}]:${errorMessage}`)
-console.log(`[${event}]:${message}`)
-this.askMovement()
-socket.write(`${PlayerEvents.NEW_POSITION}:${this.alias}:${this.position}`) // Enviamos al servidor el evento, alias y nueva posicion
-*/

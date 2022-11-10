@@ -1,4 +1,5 @@
 import avro from 'avsc' 
+import { EachMessagePayload } from "kafkajs" 
 
 export const playerStreamSchema = avro.Type.forSchema({
     "name": "playerStreamSchema",
@@ -44,6 +45,7 @@ export enum PlayerEvents {
     EDIT_PROFILE = "EDIT_PROFILE",
     END = "END",
     NEW_POSITION = "NEW_POSITION",
+    REQUEST_TO_JOIN = "REQUEST_TO_JOIN"
 }
 
 export enum RegistryEvents {
@@ -56,11 +58,14 @@ export enum RegistryEvents {
 }
 
 export enum EngineEvents {
+    PLAYER_CONNECTED_OK = "PLAYER_CONNECTED_OK",
+    PLAYER_CONNECTED_ERROR = "PLAYER_CONNECTED_ERROR",
     MOVEMENT_OK = "MOVEMENT_OK",
     MOVEMENT_ERROR = "MOVEMENT_ERROR",
     DEATH = "DEATH",
     KILL = "KILL",
-    GAME_ENDED = "GAME_ENDED"
+    LEVEL_UP = "LEVEL_UP",
+    GAME_ENDED = "GAME_ENDED",
 }
 
 export type PlayerInfo = {
@@ -79,14 +84,16 @@ export type RegistryPlayerInfo = {
 export type UnionStream = PlayerStream | EngineStream
 
 export type PlayerStream = {
-    event: string
-    alias: string
-    position: Coordinate
-    sessionId: number
+    event: PlayerEvents
+    playerInfo: PlayerInfo
 }
 
 export type EngineStream = {
-    engine: string
-    alias: string
-    position: Coordinate
+    event: EngineEvents
+    playerAlias: string
+    map?: string // no se tiene porque enviar en todos los mensajes, por eso la ?, significa que puede ser null
+}
+
+export type KafkaMessage = EachMessagePayload & {
+    processed: boolean
 }
