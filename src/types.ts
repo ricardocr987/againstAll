@@ -68,6 +68,16 @@ export enum EngineEvents {
     GAME_ENDED = "GAME_ENDED",
 }
 
+export enum WeatherEvents{
+    ASK = "ASK",
+    ASK_ERROR = "ASK_ERROR"
+}
+
+export enum NpcEvents{
+    END = "END",
+    SING_IN = "SING_IN"
+}
+
 export type PlayerInfo = {
     alias: string
     position: Coordinate
@@ -79,6 +89,22 @@ export type PlayerInfo = {
 export type RegistryPlayerInfo = {
     alias: string
     password: string
+}
+
+export type NpcInfo = {
+    alias: number
+    level: number
+}
+
+export type WeatherI = {
+    city: string
+    temperature: number
+}
+
+export type WeatherInfo = {
+    num: number
+    city: string
+    temperature: number
 }
 
 export type UnionStream = PlayerStream | EngineStream

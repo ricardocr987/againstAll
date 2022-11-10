@@ -1,43 +1,64 @@
 import { Paths } from './paths.js'
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
-import { PlayerEvents, RegistryEvents, WeatherI } from './types.js'
-import * as fs from 'fs'
+import { WeatherInfo, WeatherI, WeatherEvents } from './types.js'
+
+
+const options: Options = {
+    semi: false,
+    singleQuote: true,
+    trailingComma: 'es5',
+    useTabs: false,
+    tabWidth: 2,
+    arrowParens: 'always',
+    printWidth: 80,
+    parser: 'json',
+} // necesario para darle el formato correcto al mapa a la hora de escribir el fichero json
+
 
 export class Weather{
     public paths: Paths =new Paths(`./`)
     public port: number
     public io:  Server
-    public peticion: String
-    public weathers: Record<string, WeatherI> = this.getWeather()
+    public peticion: String = ''
+    public num: number
+    public city: string
+    public temperature: number
+    public weathers: Record<number, WeatherI> = this.getWeather()
+    public infoWeather: Record<string, WeatherInfo> = {}
 
     constructor(port: number) {
         this.port = port
         this.io = new Server()
+        this.num = 0
+        this.city = ''
+        this.temperature = 0
     }
 
     public getWeather(): Record<string, WeatherI> {
-        const actualWeather: Record<string, WeatherI> = {}
-        const weathers: Record<string, WeatherI> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
+        this.num = Math.floor(Math.random()*11)
+        //Buscar en el json la ciudad correspondiente al num aleatorio
 
-        for(const weather of Object.values(weathers)){
-            actualWeather[weather.temperature] = weather
+        if(!existsSync(this.paths.dataDir)) return {}// si no existe la carpeta data ...
+
+        const weathers: Record<number, WeatherInfo> = {}
+        const weather1: Record<number, WeatherInfo>  = JSON.parse(readFileSync(this.paths.dataFile("weather"), 'utf8'))
+        for(const weather of Object.values(weather1)){
+            weathers[weather.num] = weather
         }
-        return actualWeather
+
+        this.temperature = Math.floor(Math.random()* (Math.floor(10) - Math.ceil(-10)) + Math.ceil(-10))
+
+        return weathers
     }
 
-    public getTemperature(weather: WeatherI){
-        const fileName: string = 'Weather.txt'
-        let fileContent = fs.readFileSync(fileName, 'utf8')
-        console.log(fileContent)
-
-        this.weathers[weather.temperature] = weather
-        if(!existsSync(this.paths.dataDir))
-            mkdirSync(this.paths.dataDir)
-
-        
-
+    public get weather(): WeatherInfo{
+        return {
+            num: this.num,
+            city: this.city,
+            temperature: this.temperature
+        }
     }
 
     public Start(){
@@ -47,23 +68,23 @@ export class Weather{
             socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
         
             socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que decodificar, para convertirlo en string .toString()
-                const [temperature, city] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
+                const [event, alias] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
                 
-                const weatherInfo: WeatherI = { 
-                    temperature,
-                    city
+               /* const weatherInfo: WeatherInfo = { 
+                    num,
+                    city,
+                    temperature = Math.random()*20
                 }
-
-                
-                let check = false
-
-                try{
-                    check = this.getTemperature(weatherInfo)
-                }catch(e){
-                    //mandar error
+                */
+                switch(event){
+                    case WeatherEvents.ASK:
+                        try{
+                            this.getWeather()
+                        }catch(e){
+                            socket.write(`${WeatherEvents.ASK_ERROR}:${e}`)
+                        }
+                        break
                 }
-
-
             })
         })
         this.io.listen(this.port) // el servidor escucha el puerto 

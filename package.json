@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "start": "npm i && npm run build",
-    "build": "npm run clean:ts && npm run build:ts",
+    "build": "npm run build:ts",
     "build:ts": "tsc -p ./tsconfig.json",
     "docker:up": "docker-compose up",
     "start:PC1": "node ./dist/AA_Weather.js && npm run:kafka",

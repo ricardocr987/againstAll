@@ -1,11 +1,11 @@
-import { Coordinate, PlayerInfo, PlayerEvents } from './types.js'
+import { Coordinate, NpcInfo, NpcEvents } from './types.js'
+import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
-import { KafkaUtil } from './kafka.js'
 
 
 export class NPC{
     public position: Coordinate
-    public baseLevel: number
+    public level: number
     public alias: number 
     public action: number
     public answer: string = ''
@@ -21,7 +21,7 @@ export class NPC{
             x: Math.floor(Math.random() * 20) + 1, // posicion horizontal
             y: Math.floor(Math.random() * 20) + 1 // posicion vertical
         }
-        this.baseLevel = Math.random() * 20 
+        this.level = Math.random() * 20 
         this.alias = 0
         this.action = 0
     }
@@ -30,7 +30,76 @@ export class NPC{
         while(!this.intialAnswerSet.has(this.answer)) this.answer = this.prompt("Do you want to add a new NPC?: [y/n]")
         this.alias=this.alias++
         //if(this.answer === 'n') this.startConnectionRegistry() // si no esta registrado se conecta al registry
-        //if(this.answer === 'y') this.startConnectionEngine() // si lo esta se conecta al engine directamente
+        if(this.answer === 'y') this.startConnectionEngine() // si lo esta se conecta al engine directamente
+    }
+
+    public clearInfo(){
+        this.level = 0
+        this.answer = ''
+    }
+
+    public endSocket(socket: Socket){
+        socket.write(NpcEvents.END)
+        socket.end()
+    }
+
+    public startConnectionEngine(fromRegistry?: boolean) { // funcion que permite la conexion con el server engine
+        console.log(`Connecting to ${this.BROKER_HOST}:${this.BROKER_PORT}`) 
+
+        const socket = new Socket() 
+        socket.connect(this.BROKER_PORT, this.BROKER_HOST) 
+        socket.setEncoding("utf-8") 
+
+        socket.on("connect", () => {
+            console.log(`Connected to Engine`) 
+
+            if(fromRegistry){
+                this.answer = '2'
+                this.endSocket(socket)
+            }
+            else {
+                socket.write(`${NpcEvents.SING_IN}:${this.alias}:${this.level}`)
+            }
+        
+            socket.on("data", (data) => {
+                if(data.toString().includes("OK")){
+                    this.joinGame()
+                    switch(this.answer){
+                        case '2': 
+                            this.endSocket(socket)
+                            break
+                        default:
+                            this.endSocket(socket)
+                            break
+                    }
+                }
+                else {
+                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    console.log(`[${event}]:${errorMessage}`)
+                    this.endSocket(socket)
+                }
+            }) 
+        }) 
+      
+        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
+            switch(this.answer){
+                case '1': // si ha llegado aqui es porque el jugador quiere editar perfil
+                
+                    break
+                case '2':
+                    this.joinGame()
+                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                    console.log("Disconnected from Engine") 
+                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
+                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos todo el proceso
+                    this.clearInfo()
+                    this.initNPC()
+            }
+        }) 
+    }
+
+    public joinGame(){
+
     }
 
     public movement(){
@@ -99,6 +168,13 @@ export class NPC{
     public moveSE() {
         this.position.x - 1
         this.position.y + 1
+    }
+
+    public get NPC(): NpcInfo{
+        return{
+            alias: this.alias,
+            level: this.level
+        }
     }
 }
 
