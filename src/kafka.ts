@@ -1,5 +1,5 @@
 import { Kafka, Producer, Message, Consumer } from "kafkajs" 
-import { EngineStream, PlayerStream, UnionStream, KafkaMessage } from './types.js'
+import { EngineStream, PlayerStream, UnionStream } from './types.js'
 import { kafkaConfig } from './config.js'
 
 // como tanto engine como player ralizan una comunicacion bidireccional, es decir que ambos son productores y consumidores al mismo tiempo
@@ -12,7 +12,6 @@ export class KafkaUtil {
     public consumer: Consumer
     
     public topic: string
-    public messages: KafkaMessage[] = []
 
     constructor(
         clientId: string,
@@ -32,6 +31,9 @@ export class KafkaUtil {
         this.consumer = this.consumerClient.consumer({ groupId: `${clientType}` })
 
         this.topic = topic
+
+        this.startProducer()
+        this.startConsumer()
     }
 
     public async startProducer(){
@@ -40,18 +42,7 @@ export class KafkaUtil {
 
     public async startConsumer(){
         await this.consumer.connect()
-        await this.consumer.subscribe({ topic: `${this.topic}`, /* fromBeginning: true }*/ })
-    }
-
-    public async consumeMessages() {
-        await this.consumer.run({ eachMessage: async (payload) => { 
-            this.messages.push({
-                ...payload, // raw message from kafka
-                processed: false // flag para saber si un evento se ha procesado o no
-            })
-        }}) // almaceno todos los mensaje que recibe el consumidor
-        //await delay(5000)
-        //this.consumer.disconnect()
+        await this.consumer.subscribe({ topic: `${this.topic}`, fromBeginning: true })
     }
 
     /*
@@ -87,7 +78,3 @@ export class KafkaUtil {
         return (stream as EngineStream).playerAlias !== undefined
     }
 }
-
-/*function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}*/

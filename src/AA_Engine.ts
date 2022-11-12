@@ -11,7 +11,8 @@ export class EngineServer {
     public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
     public connectedPlayers: Record<string, PlayerInfo> = {}
     public gameStarted: boolean = false
-    public map: string // es un simple string, ejemplo: " : : riki: M: : ..." -> significaria que en la casilla [0,2] esta el jugador riki, en la casilla [0,3] hay una mina y en los espacios en blanco nada
+    public gameFinished: boolean = false
+    public map: string[][]
 
     constructor(        
         public SERVER_PORT: number,
@@ -22,14 +23,23 @@ export class EngineServer {
         this.map = this.getEmptyMap()
     }
 
-    public getEmptyMap(): string{
-        let map: string = ''
+    public getEmptyMap(): string[][] {
+        const map: string[][] = []
+        const row: string [] = []
+
         for (let i = 0; i < 19; i++) { 
-            for (let i = 0; i < 19; i++) { 
-                map += ' :' // cada : separa una coordenada, un espacio es que esta vacia
+            for (let j = 0; j < 19; j++) { 
+                row.push(' ')
             }
+            map.push(row)
         }
         return map
+    }
+
+    public printBoard() {
+        for (let i = 0; i < this.map.length; i++) { 
+            console.log(this.map[i].join(''))
+        }
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
@@ -89,79 +99,61 @@ export class EngineServer {
         this.io.listen(this.SERVER_PORT) // el servidor escucha el puerto 
     }
 
-    public startKafka(): KafkaUtil {
+    public async newGame() {
         const kafka = new KafkaUtil('server', 'engine', 'playerMessages')
-        try {
-            kafka.startProducer()
-            kafka.startConsumer()
-        }
-        catch(e){
-            console.log(e)
-        }
-        return kafka
-    }
 
-    public newGame() {
-        const kafka = this.startKafka()
-
-        while(!this.gameStarted) {
-            this.waitToStart(kafka)
-        }
-
-        console.log("THE GAME HAS STARTED!")
-        // la partida empezara cuando se unan x jugadores o se introduzca algo por consola durante la ejecucion del engine (aqui manda mensaje a todos los jugadores)
-        // cuando se inicia partida se deberia cerrar el socket que permite la autenticacion o activar un booleano que no permita unirse a la partida cuando esta este activada
-
-        // el consumer y producer estaran activas durante el tiempo que este la partida en espera, si el jugador se intenta mover el engine tiene que enviar un mensaje avisandole de que aun no ha empezado
-
-        // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
-
-    }
-
-    public waitToStart(kafka: KafkaUtil) { // si no se unen 5 jugadores deberia empezar a los 0,8 
-        // minutos se empieza la partida con los jugadores que se hayan unido
-        setTimeout(() => {
-            if(Object.keys(this.connectedPlayers).length === 5){
-                this.gameStarted = true
-            }
-    
-            this.processMessages(kafka)
-          }, 50000)
-
-        this.gameStarted = true
-    }
-
-    public processMessages(kafka: KafkaUtil){
-        for(const message of kafka.messages){
-            if (message.processed) continue // quizas seria mejor eliminar los mensajes ya procesador por eficiencia
-
-            if(message.message.value) {
-                const parsedMessage: PlayerStream = JSON.parse(message.message.value.toString())
-                switch (parsedMessage.event){
-                    case PlayerEvents.REQUEST_TO_JOIN:
-                        if (!this.gameStarted) {
-                            this.connectedPlayers[parsedMessage.playerInfo.alias] = parsedMessage.playerInfo
+        await kafka.consumer.run({ 
+            eachMessage: async (payload) => { // payload: raw message from kafka
+                if (payload.message.value){ // solo entra si el valor es diferente a undefined
+                    const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // convierto el valor del mensaje en un JSON (seria como una especie de deserializacion), Buffer -> string -> JSON
+                    this.processMessage(playerMessage, kafka) // tambien envia respuestas y actualiza mapa
+                    if (!this.gameStarted) {
+                        if (Object.keys(this.connectedPlayers).length === 3) {
+                            this.gameStarted = true // 3 jugadores conectados = empieza la partida
                             kafka.sendRecord({
-                                event: EngineEvents.PLAYER_CONNECTED_OK,
-                                playerAlias: `${parsedMessage.playerInfo.alias}`
+                                event: EngineEvents.GAME_STARTING,
+                                messageToAll: true
                             })
-                            console.log(`Player ${parsedMessage.playerInfo.alias} connected to the waitlist`)
-                        }
-                        else {
-                            kafka.sendRecord({
-                                event: EngineEvents.PLAYER_CONNECTED_ERROR,
-                                playerAlias: `${parsedMessage.playerInfo.alias}`
-                            })
-                        }
-                        break
-                        
-                    
+                            console.log("THE GAME HAS STARTED!")
+                        } 
+                    }
                 }
-                message.processed = true
             }
-            else {
-                console.log("Error: Received a undefined message")
-            }
+        })
+        // cuando se inicia partida se deberia cerrar el socket que permite la autenticacion o activar un booleano que no permita unirse a la partida cuando esta este activada
+        // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
+    }
+
+    public processMessage(message: PlayerStream, kafka: KafkaUtil){
+        switch (message.event){
+            case PlayerEvents.REQUEST_TO_JOIN:
+                if (!this.gameStarted) {
+                    this.connectedPlayers[message.playerInfo.alias] = message.playerInfo
+                    kafka.sendRecord({
+                        event: EngineEvents.PLAYER_CONNECTED_OK,
+                        playerAlias: `${message.playerInfo.alias}`
+                    })
+                    console.log(`Player ${message.playerInfo.alias} connected to the lobby`)
+                }
+                else {
+                    kafka.sendRecord({
+                        event: EngineEvents.PLAYER_CONNECTED_ERROR,
+                        playerAlias: `${message.playerInfo.alias}`,
+                        error: 'game already started'
+                    })
+                }
+                break
+            case PlayerEvents.NEW_POSITION:
+                if (!this.gameStarted || this.gameFinished) {
+                    kafka.sendRecord({
+                        event: EngineEvents.GAME_NOT_PLAYABLE,
+                        playerAlias: `${message.playerInfo.alias}`,
+                        error: 'game not playable now (not started/finished)'
+                    })
+                }
+                else {
+
+                }
         }
     }
 }

@@ -1,51 +1,17 @@
-import avro from 'avsc' 
-import { EachMessagePayload } from "kafkajs" 
-
-export const playerStreamSchema = avro.Type.forSchema({
-    "name": "playerStreamSchema",
-    "type": "record",
-    "fields": [
-        {
-          "name": "event",
-          "type": "string",
-        },
-        {
-          "name": "alias",
-          "type": "string",
-        },
-        {
-            "name": "position",
-            "type": {
-                "type": "record",
-                "name": "Coordinate",
-                "fields": [
-                    {
-                        "name": "x",
-                        "type": "int"
-                    },
-                    {
-                        "name": "y",
-                        "type": "int"
-                    },
-                ]
-            }
-        }
-    ]
-})
-
 export type Coordinate = {
     x: number
     y: number
 }
 
-// Event types that sockets will emit
 export enum PlayerEvents {
+    // Registry & engine authentication events
     SIGN_IN = "SIGN_IN",
     SIGN_UP = "SIGN_UP",
     EDIT_PROFILE = "EDIT_PROFILE",
     END = "END",
+    // Game events
+    REQUEST_TO_JOIN = "REQUEST_TO_JOIN",
     NEW_POSITION = "NEW_POSITION",
-    REQUEST_TO_JOIN = "REQUEST_TO_JOIN"
 }
 
 export enum RegistryEvents {
@@ -60,6 +26,8 @@ export enum RegistryEvents {
 export enum EngineEvents {
     PLAYER_CONNECTED_OK = "PLAYER_CONNECTED_OK",
     PLAYER_CONNECTED_ERROR = "PLAYER_CONNECTED_ERROR",
+    GAME_NOT_PLAYABLE = "GAME_NOT_PLAYABLE", // when a player send a NEW_POSITION when the game has not started or already finished
+    GAME_STARTING = "GAME_STARTING",
     MOVEMENT_OK = "MOVEMENT_OK",
     MOVEMENT_ERROR = "MOVEMENT_ERROR",
     DEATH = "DEATH",
@@ -116,10 +84,8 @@ export type PlayerStream = {
 
 export type EngineStream = {
     event: EngineEvents
-    playerAlias: string
-    map?: string // no se tiene porque enviar en todos los mensajes, por eso la ?, significa que puede ser null
-}
-
-export type KafkaMessage = EachMessagePayload & {
-    processed: boolean
+    playerAlias?: string // alias al que va destinado el mensaje
+    messageToAll?: boolean // flag para identificar si el mensaje es para todos los jugadores o no
+    map?: string[][] // no se tiene porque enviar en todos los mensajes, por eso la ?, significa que puede ser null
+    error?: string // error explained
 }
