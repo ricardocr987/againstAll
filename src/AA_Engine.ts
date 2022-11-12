@@ -1,18 +1,26 @@
 import { Server, Socket } from 'net'
 import { Paths } from './paths.js'
 import { existsSync, readFileSync } from 'fs'
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents } from './types.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate, NPCInfo } from './types.js'
 import { KafkaUtil } from './kafka.js'
 
 export class EngineServer {
-    public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
-    public io: Server
-    public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor la instancia del jugador
-    public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
-    public connectedPlayers: Record<string, PlayerInfo> = {}
+    public paths: Paths = new Paths(`./`) // is simply an object to make it easy to get the path to e.g. the database
+    
+    public io: Server // server instance
+
+    // MAPS
+    public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // map to store the registry related player's information where the key is the alias and the value is the player instance, gets data from DB
+    public playerSockets: Record<string, Socket> = {} // map to store the socket information being the key the player alias and the value the socket instance, only works to close the server when there are no players
+    public connectedPlayers: Record<string, PlayerInfo> = {} // map to store the player information being the key the player alias and the value the playerInfo
+    public connectedNPC: Record<string, NPCInfo> = {}
+
+    // FLAGS
     public gameStarted: boolean = false
     public gameFinished: boolean = false
-    public map: string[][]
+    public filledMap: boolean = false
+    
+    public map: string[][] // stores the game map
 
     constructor(        
         public SERVER_PORT: number,
@@ -33,6 +41,7 @@ export class EngineServer {
             }
             map.push(row)
         }
+
         return map
     }
 
@@ -42,12 +51,12 @@ export class EngineServer {
         }
     }
 
-    public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
+    public getPlayers(): Record<string, RegistryPlayerInfo> { // when an object is created read the json to load data from old executions
         if(!existsSync(this.paths.dataDir)) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
-        for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // read the file
+        for(const player of Object.values(players)){ // loop to save all the players that had been stored in the file to the map
             registeredPlayers[player.alias] = player
         }
 
@@ -55,7 +64,7 @@ export class EngineServer {
     }
 
     public signInPlayer(player: RegistryPlayerInfo, socket: Socket) {
-        this.registeredPlayers = this.getPlayers() // necesario para tenerlo totalmente actualizado en este punto
+        this.registeredPlayers = this.getPlayers() // necessary to have it fully updated at this point
         if(!this.registeredPlayers[player.alias]) throw new Error("This alias does not exist on the database")
         if(this.registeredPlayers[player.alias].password !== player.password) throw new Error("The password is not correct")
         
@@ -64,71 +73,97 @@ export class EngineServer {
 
     public startAuthentication() {
         this.io.on('connection', (socket: Socket) => {
-            const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
+            const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + client port
             console.log(`New connection from ${remoteSocket}`)
-            socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
+            socket.setEncoding("utf-8") // sets the kind of encoding format
 
-            socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que convertir en string .toString()                
-                const [event, alias, password] = message.toString().split(':') // creamos un vector de la respuesta del cliente
+            socket.on("data", (message) => { // // when you send a message from the client, (socket.write) -> you receive a Buffer (bytes) that must be converted into a string .toString()
+                const [event, alias, password] = message.toString().split(':') // message received from the player
                 
-                if (!this.playerSockets[alias]) this.playerSockets[alias] = socket
+                if (!this.playerSockets[alias]) this.playerSockets[alias] = socket // if it isnt registered already as a connected socket will register it
                 console.log(`Received this message from the player: ${event}:${alias}:${password}`)
 
+                // stores player info
                 const registryPlayerInfo: RegistryPlayerInfo = {
                     alias,
                     password
                 }
 
+                // depending of the message event from the player, will try to check the credentials to log in or end the connection
                 switch(event){
                     case PlayerEvents.SIGN_IN:
                         try{
-                            this.signInPlayer(registryPlayerInfo, socket)
+                            this.signInPlayer(registryPlayerInfo, socket) 
                         } catch(e){
                             socket.write(`${RegistryEvents.SIGN_IN_ERROR}:${e}`)
                         }
                         break
-                    case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
+
+                    case PlayerEvents.END: // if it receives END event, will finish the connection
                         console.log("SOCKET DISCONNECTED: " + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
-                        if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
+                        // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
                         break
                 }          
             }) 
         })
-        this.io.listen(this.SERVER_PORT) // el servidor escucha el puerto 
+        this.io.listen(this.SERVER_PORT) // the server listens the port
     }
 
     public async newGame() {
         const kafka = new KafkaUtil('server', 'engine', 'playerMessages')
 
-        await kafka.consumer.run({ 
-            eachMessage: async (payload) => { // payload: raw message from kafka
-                if (payload.message.value){ // solo entra si el valor es diferente a undefined
-                    const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // convierto el valor del mensaje en un JSON (seria como una especie de deserializacion), Buffer -> string -> JSON
-                    this.processMessage(playerMessage, kafka) // tambien envia respuestas y actualiza mapa
-                    if (!this.gameStarted) {
-                        if (Object.keys(this.connectedPlayers).length === 3) {
-                            this.gameStarted = true // 3 jugadores conectados = empieza la partida
-                            kafka.sendRecord({
-                                event: EngineEvents.GAME_STARTING,
-                                messageToAll: true
-                            })
-                            console.log("THE GAME HAS STARTED!")
-                        } 
+        try {
+            await kafka.consumer.run({ 
+                eachMessage: async (payload) => { // payload: raw message from kafka
+                    if (payload.message.value){ // true if message is != undefined
+                        const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
+                        this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
+                        if (!this.gameStarted) { // in the case the game hasnt started...
+                            if (Object.keys(this.connectedPlayers).length === 3) { // if there is 3 players in the lobby already...
+                                this.gameStarted = true // ...starts the game...
+                                kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
+                                    event: EngineEvents.GAME_STARTED,
+                                    messageToAll: true
+                                })
+                                console.log("THE GAME HAS STARTED!")
+                            } 
+                        }
+                        else {
+                            if (!this.filledMap) this.fillMap()
+                        }
                     }
                 }
-            }
-        })
+            })
+        }
+        catch(e){
+            // if there is an error, pause and resume message consumption
+            kafka.pauseConsumer()
+            kafka.resumeConsumer()
+
+            throw e
+        }
         // cuando se inicia partida se deberia cerrar el socket que permite la autenticacion o activar un booleano que no permita unirse a la partida cuando esta este activada
         // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
     }
 
+    /* 
+        Engine only receives two kind of events:
+        - REQUEST_TO_JOIN: 
+            - If the game hasnt started, enables the player to join it, sending a record notifying that he has joined
+            - If not, sends a record notifying that he cant join
+        - NEW_POSITION:
+            - If the game hasnt started or already finished, sends GAME_NOT_PLAYABLE, here the player to move without the game being ready
+            - Else, the position of the player have to be modified in the board and is needed to send a record about the player's situation after this event
+    */
     public processMessage(message: PlayerStream, kafka: KafkaUtil){
         switch (message.event){
             case PlayerEvents.REQUEST_TO_JOIN:
                 if (!this.gameStarted) {
                     this.connectedPlayers[message.playerInfo.alias] = message.playerInfo
+                    this.modifyBoard(message.playerInfo.alias, message.playerInfo.position)
+
                     kafka.sendRecord({
                         event: EngineEvents.PLAYER_CONNECTED_OK,
                         playerAlias: `${message.playerInfo.alias}`
@@ -152,9 +187,148 @@ export class EngineServer {
                     })
                 }
                 else {
-
+                    this.updateBoard(message.playerInfo, kafka)
                 }
         }
+    }
+
+    // it overrides the content of a position by introducing the new content 
+    public modifyBoard(toIntroduce: string, position: Coordinate) { 
+        this.map[position.x][position.y] = toIntroduce // modifies the content of the map 
+        if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
+        // position updated in the playersInfo map
+    }
+
+    public updateBoard(playerInfo: PlayerInfo, kafka: KafkaUtil) {
+        const previousPosition = this.connectedPlayers[playerInfo.alias].position // stores the previous position, to delete the player there
+        this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
+
+        const newPosition = playerInfo.position // stores the new position that maybe the player will be
+        const newPositionContent = this.map[newPosition.x][newPosition.y]
+
+        if(newPositionContent !== ' ') { // if that coordinate was already occupied, we need to manage the situation
+            switch (newPositionContent) {
+                case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
+                    kafka.sendRecord({
+                        event: EngineEvents.MOVEMENT_OK,
+                        event2: EngineEvents.DEATH,
+                        playerAlias: playerInfo.alias,
+                    })
+                    delete this.connectedPlayers[playerInfo.alias]
+
+                    break
+                case 'A': // food, levels up in the players info map and sends the event to the player
+                    this.modifyBoard(playerInfo.alias, newPosition)
+                    kafka.sendRecord({
+                        event: EngineEvents.MOVEMENT_OK,
+                        event2: EngineEvents.LEVEL_UP,
+                        playerAlias: playerInfo.alias,
+                        map: this.map
+                    })
+                    this.connectedPlayers[playerInfo.alias].baseLevel++
+
+                    break
+                default:
+                    if (this.connectedPlayers[newPositionContent]) { // if it is a player
+                        this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
+                    }
+                    else { // if it is a NPC
+
+                    }
+            }
+        }
+        else { // if it was free, it isnt needed to manage the situation
+            this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
+
+            kafka.sendRecord({
+                event: EngineEvents.MOVEMENT_OK,
+                playerAlias: playerInfo.alias
+            })
+        }
+    }
+
+    // manages the process for deciding who wins the match, also handles the sending of the correspondings messages
+    public decideWinner (actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo, kafka: KafkaUtil, previousPosition: Coordinate, newPosition: Coordinate) {
+        if (actualPlayer.baseLevel > attackedPlayer.baseLevel) {
+            // WINNER
+            this.modifyBoard(actualPlayer.alias, newPosition) // position updated in the game map/board
+
+            kafka.sendRecord({
+                event: EngineEvents.MOVEMENT_OK,
+                event2: EngineEvents.KILL,
+                playerAlias: actualPlayer.alias
+            })
+
+            // LOSER
+            delete this.connectedPlayers[attackedPlayer.alias]
+
+            kafka.sendRecord({
+                event: EngineEvents.DEATH,
+                playerAlias: attackedPlayer.alias
+            })
+        }
+        else {
+            if (actualPlayer.baseLevel < attackedPlayer.baseLevel) {
+                // WINNER: doesnt need to be modified
+                // LOSER
+                delete this.connectedPlayers[attackedPlayer.alias]
+
+                kafka.sendRecord({
+                    event: EngineEvents.DEATH,
+                    playerAlias: attackedPlayer.alias
+                })
+            }
+            else { // tie, ie: same level both
+                this.modifyBoard(actualPlayer.alias, previousPosition) // position updated in the game map/board
+
+                kafka.sendRecord({
+                    event: EngineEvents.MOVEMENT_OK,
+                    event2: EngineEvents.TIE,
+                    map: this.map,
+                    position: previousPosition
+                })
+            }
+        }
+    }
+
+    // fill map with mines and food
+    public fillMap () {
+        const minesNumber = this.randomIntFromInterval(0,19) // random number between 1-20
+        const foodNumber = this.randomIntFromInterval(0,19)
+
+        for (let i = 0; i < minesNumber; i++) {
+            const position = this.getFreeRandomPosition()
+            this.modifyBoard('M', position)
+        }
+
+        for (let i = 0; i < foodNumber; i++) {
+            const position = this.getFreeRandomPosition()
+            this.modifyBoard('A', position)
+        }
+
+        this.filledMap = true
+    }
+
+    // returns always a free coordinate
+    public getFreeRandomPosition (): Coordinate {
+        let position = {
+            x: this.randomIntFromInterval(0,19),
+            y: this.randomIntFromInterval(0,19) 
+        }
+
+        while(true) {
+            if (this.map[position.x][position.y] === ' ') break
+            position = {
+                x: this.randomIntFromInterval(0,19),
+                y: this.randomIntFromInterval(0,19)
+            }
+        }
+
+        return position
+    }
+
+    public randomIntFromInterval(min: number, max: number) { // min and max included 
+        return Math.floor(Math.random() * (max - min + 1) + min)
     }
 }
 

@@ -2,69 +2,77 @@ import { Coordinate, PlayerInfo, PlayerEvents, PlayerStream, EngineStream, Engin
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 import { KafkaUtil } from './kafka.js'
-//import { playerStreamSchema, PlayerStream } from './types.js' 
 
 export class Player {
+    // PlayerInfo
     public position: Coordinate
     public baseLevel: number
     public coldEffect: number
     public hotEffect: number
     public alias: string = ''
     public password: string = ''
+
+    // Used to manage the user answers
+    public prompt: Prompt = promptSync() // use to register the user inputs
     public answer: string = ''
-    public prompt: Prompt = promptSync()
     public intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
+    public menuAnswerSet: Set<string> = new Set<string>(['1', '2', '3'])
     public movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
+
+    // Flags to identify the phase of the game
     public startedGame = false
     public finishedGame = false
     public joined = false
 
-    constructor(
+    // to create the player instance is needed the IPs and ports of the registry, engine and kafka
+    constructor( 
         public ENGINE_HOST: string,
         public ENGINE_PORT: number,
+
         public REGISTRY_HOST: string,
         public REGISTRY_PORT: number,
+
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
     ) {
         this.position = {
-            x: Math.floor(Math.random() * 20) + 1, // posicion horizontal
-            y: Math.floor(Math.random() * 20) + 1 // posicion vertical
+            x: this.randomIntFromInterval(0, 19), // 0-19
+            y: this.randomIntFromInterval(0, 19) // 0-19
         }
         this.baseLevel = 1
-        this.coldEffect = Math.floor(Math.random() * 20) - 10
-        this.hotEffect = Math.floor(Math.random() * 20) - 10
+        this.coldEffect = this.randomIntFromInterval(-10, 10)
+        this.hotEffect = this.randomIntFromInterval(-10, 10)
     }
 
     public initUser(){
         while(!this.intialAnswerSet.has(this.answer)) this.answer = this.prompt("Are you already registered?: [y/n]")
-        this.askUserInfo()
-        if(this.answer === 'n') this.startConnectionRegistry() // si no esta registrado se conecta al registry
-        if(this.answer === 'y') this.startConnectionEngine() // si lo esta se conecta al engine directamente
+        if(this.answer === 'n') this.startConnectionRegistry() // if he isnt registered, you are connected to the registry
+        if(this.answer === 'y') this.startConnectionEngine() // if he is, he is connected to the registry
     }
 
-    public askUserInfo(){
+    // alias & password ask
+    public askUserInfo(){ 
         this.alias = this.prompt("Introduce your username: ")
         this.password = this.prompt("Introduce your password: ")
     }
 
+    // clean of some properties filled before
     public clearInfo() {
         this.alias = ''
-        this.answer = ''
+        this.password = ''
         this.answer = ''
     }
 
     public showMenu() {
-        console.log("Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END")
-        this.answer = this.prompt('')
-    }
-
-    public endSocket(socket: Socket){
-        socket.write(PlayerEvents.END)
-        socket.end()
+        while(!this.menuAnswerSet.has(this.answer)){
+            console.log("Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END")
+            this.answer = this.prompt('')
+            if (!this.menuAnswerSet.has(this.answer)) console.log('Please introduce 1,2 or 3')
+        }
     }
 
     public startConnectionRegistry(fromEngine?: boolean) {
+        this.askUserInfo()
         console.log(`Connecting to ${this.REGISTRY_HOST}:${this.REGISTRY_PORT}`) 
 
         const socket = new Socket() 
@@ -74,53 +82,61 @@ export class Player {
         socket.on("connect", () => {
             console.log(`Connected to Registry`) 
 
-            // si se llama desde Engine es para editar el usuario, si no el usuario quiere registrarse
-            // la autenticacion (inicio sesion) la tiene que hacer engine, por tanto, el registry solo se utiliza para crear/editar una cuenta
-            // Enviamos al servidor el evento, alias y password
+            // if it is called from Engine it is to edit the user, if not the user wants to register
+            // the authentication (login) has to be done by engine, so the registry is only used to create/edit an account
+            // we send to the server the event, alias and password in both cases
             if(fromEngine){
-                this.askUserInfo()
                 socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
             }
             else {
                 socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
             }
 
-            socket.on("data", (data) => { // aqui se entra cuando el player recibe informacion desde registry
-                if(data.toString().includes("OK")){ // si el mensaje incluye un OK muestra el menu, si no es porque ha saltado un error
+            socket.on("data", (data) => { // here is entered when the player receives information from registry
+                if(data.toString().includes("OK")){ // if the message includes an OK it shows the menu, otherwise it is because an error has occurred and has to be handled
                     this.showMenu()
                     switch(this.answer){
                         case '1':
                             this.askUserInfo()
                             socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
                             break
-                        default: // si quiere empezar partida se desconecta del registry y se conecta al engine
+                        default: // if he wants to start a game, he will be disconnected from the registry and connected to the engine
                             this.endSocket(socket)
                     }
                 }
-                else {
-                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                else { // handling of the error
+                    const [event, _, errorMessage] = data.toString().split(':') // I create a vector of the server response, each position is splitted when it appears a : in the string
                     console.log(`[${event}]:${errorMessage}`)
-                    this.endSocket(socket)
+
+                    this.endSocket(socket) // will finish the communication, but the execution will continue in socket("close... (below)
                 }
             }) 
         }) 
       
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor) 
+        socket.on("close", () => { // when connection termination is confirmed (server response), after endSocket function 
             switch(this.answer){
-                case '2': // si ha llegado aqui es porque el jugador quiere jugar
-                    this.startConnectionEngine(true)
+                case '2': // if it has arrived here it is because the player wants to play
+                    this.joinGame()
                     break
-                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                case '3':  // if it has arrived here it is because the player wants to close the connection
+                    // Client sends END, Server confirms completion, Client kills process, here we kill the client process
                     console.log("Disconnected from Registry")
-                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
-                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos conexion
+                    process.exit(0) // we kill the client process
+                default: // if it has arrived here it is because an error has occurred from the server, we restart the connection
                     this.clearInfo()
                     this.initUser()
             }
         }) 
     }
 
-    public startConnectionEngine(fromRegistry?: boolean) { // funcion que permite la conexion con el server engine
+    // used in the different circumstances to finish the socket communication
+    public endSocket(socket: Socket){
+        socket.write(PlayerEvents.END)
+        socket.end()
+    }
+
+    public startConnectionEngine() { // function that allows connection to the server engine, only for authentication
+        this.askUserInfo()
         console.log(`Connecting to ${this.ENGINE_HOST}:${this.ENGINE_PORT}`) 
 
         const socket = new Socket() 
@@ -129,65 +145,64 @@ export class Player {
 
         socket.on("connect", () => {
             console.log(`Connected to Engine`) 
-
-            if(fromRegistry){ // esto es necesario para llamar joinGame() cuando el usuario viene de registrarse sin tener que pasar por el proceso del menu, mejorar!
-                this.answer = '2' // esta variable ya deberia de ser '2' pero me gustaria comprobarlo
-                this.endSocket(socket)
-            }
-            else {
-                socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
-            }
+            socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
         
             socket.on("data", (data) => {
                 if(data.toString().includes("OK")){
                     this.showMenu()
-                    switch(this.answer){
-                        case '2': 
-                            this.endSocket(socket)
-                            break
-                        default:
-                            this.endSocket(socket)
-                            break
-                    }
+
+                    this.endSocket(socket) // in all the menu posibilities, will end the socket connection
                 }
                 else {
-                    const [event, _, errorMessage] = data.toString().split(':') // creamos un vector de la respuesta del server
+                    const [event, _, errorMessage] = data.toString().split(':') // creates a vector of the server response, each position is splitted when it appears a : in the string
                     console.log(`[${event}]:${errorMessage}`)
+
                     this.endSocket(socket)
                 }
             }) 
         }) 
       
-        socket.on("close", () => { // cuando se confirma la finalizacion de la conexion (respuesta del servidor), matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, se mata el proceso del cliente 
+        socket.on("close", () => { // when connection termination is confirmed (server response), after endSocket function
             switch(this.answer){
-                case '1': // si ha llegado aqui es porque el jugador quiere editar perfil
+                case '1': // if it has arrived here it is because the player wants to edit the profile
                     this.startConnectionRegistry(true)
                     break
-                case '2':
+                case '2': // if it has arrived here it is because the player wants to play
                     this.joinGame()
-                case '3':  // si ha llegado aqui es porque el jugador quiere cerrar la conexion
+                case '3':  // if it has arrived here it is because the player wants to close the connection
+                // Client sends END, Server confirms completion, Client kills process, here we kill the client process
                     console.log("Disconnected from Engine") 
-                    process.exit(0) // matamos el proceso del cliente. Es decir: Cliente manda END, Servidor confirma finalizacion, Cliente mata proceso
-                default: // si ha llegado aqui es porque ha saltado algun error desde el servidor, reiniciamos todo el proceso
+                    process.exit(0) // we kill the client process
+                default: // if it has arrived here it is because an error has occurred from the server, we restart the connection
                     this.clearInfo()
                     this.initUser()
             }
         }) 
     }
 
+    public requestToJoinLobby(kafka: KafkaUtil) {
+        const event: PlayerStream = { // first message from the player to the engine in kafka to ask to join the lobby
+            event: PlayerEvents.REQUEST_TO_JOIN,
+            playerInfo: this.getPlayerInfo()
+        }
+        kafka.sendRecord(event)
+    }
+
+    // starts the kafka usage
     public async joinGame() {
-        const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages')
-        this.requestLobbyJoin(kafka)
-        
+        const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+        this.requestToJoinLobby(kafka) // send the message to join the lobby
+        console.log('Wating for the game to start...')
+
         try {
-            // aqui entra en un bucle a escuchar los mensajes del kafka cluster
+            // here enters to a loop and starts to consume all the messages from kafka
             await kafka.consumer.run({ 
                 eachMessage: async (payload) => { // payload: raw message from kafka
-                    if (payload.message.value){ // solo entra si el valor es diferente a undefined
-                        const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // convierto el valor del mensaje en un JSON (seria como una especie de deserializacion), Buffer -> string -> JSON
-                        if (this.isEngineStreamReceiver(engineMessage)) { // solo me importa el mensaje si el engine escribe el alias en el propio mensaje (para identificar el receptor del mensaje) o si es un mensaje para todos los jugadores
-                            this.processMessage(engineMessage, kafka) // procesa el mensaje del cluster de kafka que ha enviado el engine
-                            this.askMovement(kafka) // pregunta y envia el evento al cluster de kafka, no modifica la posicion del jugador hasta que no hay confirmacion del engine
+                    if (payload.message.value){ // true if the value is different from undefined
+                        const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
+                        if (this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
+                            this.processMessage(engineMessage, kafka) // process the message from kafka cluster that was sent by the engine
+                            this.askMovement(kafka) // asks and send the event to the kafka cluster
                         }
                     }
                     else {
@@ -197,13 +212,17 @@ export class Player {
             })
         }
         catch(e){
-            console.log(e)
+            // if there is an error, pause and resume message consumption
+            kafka.pauseConsumer()
+            kafka.resumeConsumer()
+
+            throw e
         }
     }
 
-    // devuelve true si el mensaje incluye su alias explicitamente o si es un mensaje para todos
+    // true if the message includes the alias explicitly or if it a message for all
     public isEngineStreamReceiver (engineMessage: EngineStream): boolean { 
-        return engineMessage.playerAlias === this.alias || engineMessage.messageToAll !== undefined
+        return engineMessage.playerAlias === this.alias || engineMessage.messageToAll == true
     }
 
     public printBoard(map: string[][]) {
@@ -212,50 +231,82 @@ export class Player {
         }
     }
 
-    public requestLobbyJoin(kafka: KafkaUtil) {
-        const event: PlayerStream = { // primer mensaje del jugador al engine para solicitar unirse a la partida
-            event: PlayerEvents.REQUEST_TO_JOIN,
-            playerInfo: this.getPlayerInfo()
-        }
-        kafka.sendRecord(event)
-    }
-
     public processMessage(message: EngineStream, kafka: KafkaUtil){
         switch (message.event){
             case EngineEvents.PLAYER_CONNECTED_OK:
                 this.joined = true
                 console.log('You have joined successfully to the lobby')
+
                 break
-            case EngineEvents.PLAYER_CONNECTED_ERROR:
+            case EngineEvents.PLAYER_CONNECTED_ERROR: // when someone try to REQUEST_TO_JOIN but the game already started
                 console.log(message.playerAlias, ' could not connect because: ', message.error)
-                this.requestLobbyJoin(kafka)
-                break
-            case EngineEvents.GAME_NOT_PLAYABLE:
-                console.log(message.playerAlias, ': ', message.error)
-                break
-            case EngineEvents.MOVEMENT_OK:
-                if (message.map) this.printBoard(message.map)
-                this.changePosition()
-                break
-            case EngineEvents.MOVEMENT_ERROR:
-                if (message.map) this.printBoard(message.map)
-                console.log(message.playerAlias, ': ', message.error)
-                break
-            case EngineEvents.DEATH:
-                this.finishedGame = true
-                console.log('You lost, someone killed you')
-                break
-            case EngineEvents.KILL:
-                if (message.map) this.printBoard(message.map)
+                kafka.pauseConsumer()
 
                 break
-            case EngineEvents.LEVEL_UP:
-                if (message.map) this.printBoard(message.map)
+            case EngineEvents.GAME_NOT_PLAYABLE: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
+                console.log(message.playerAlias, ': ', message.error)
+                if (this.finishedGame) kafka.pauseConsumer()
 
                 break
+
+            case EngineEvents.GAME_STARTED:
+                if (this.joined) { // if true is because the player was a confirmed joined player with engine
+                    console.log(message.playerAlias, ': THE GAME HAS STARTED!')
+                    if (message.map) this.printBoard(message.map)
+                }
+                else { // it could happen that the player receives this message as first one, it wont be able to join
+                    console.log('Sorry the game has already started and you cant join to this session')
+                    kafka.pauseConsumer()
+                }
+
+                break
+            
             case EngineEvents.GAME_ENDED:
+                kafka.pauseConsumer()
                 this.finishedGame = true
+
                 console.log('The game has ended')
+
+                break
+            
+            case EngineEvents.DEATH:
+                kafka.pauseConsumer()
+                this.finishedGame = true
+
+                console.log('You lost, someone killed you')
+
+                break
+
+            case EngineEvents.MOVEMENT_OK:
+                if (message.event2) {
+                    switch (message.event2) { // se podria eliminar este switch y direcrtamente mostrar el mapa
+                        case EngineEvents.KILL:
+                            if (message.map) this.printBoard(message.map)
+                            // podria mostrar algun mensaje o informacion sobre el playerInfo
+                            break
+            
+                        case EngineEvents.LEVEL_UP:
+                            if (message.map) this.printBoard(message.map)
+            
+                            break
+
+                        case EngineEvents.TIE:
+                            if (message.map) this.printBoard(message.map)
+                            if (message.position) this.position = message.position
+
+                            break
+            
+                    }
+                }
+                if (message.map) this.printBoard(message.map)
+
+                break
+
+            case EngineEvents.MOVEMENT_ERROR:
+                if (message.position) this.position = message.position
+                if (message.map) this.printBoard(message.map)
+                console.log(message.playerAlias, ': ', message.error)
+
                 break
         }    
     }
@@ -274,7 +325,10 @@ export class Player {
         while(!this.movementSet.has(this.answer)){
             console.log("Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ")
             this.answer = this.prompt("")
+            if (!this.movementSet.has(this.answer)) console.log('Please introduce N, S, W, E, NW, NE, SW or SE')
         }
+
+        this.changePosition()
 
         const event: PlayerStream = {
             event: PlayerEvents.REQUEST_TO_JOIN,
@@ -351,6 +405,10 @@ export class Player {
 
     public modifyLevel(amount: number) {
         this.baseLevel += amount
+    }
+
+    public randomIntFromInterval(min: number, max: number) { // min and max included 
+        return Math.floor(Math.random() * (max - min + 1) + min)
     }
 }
 

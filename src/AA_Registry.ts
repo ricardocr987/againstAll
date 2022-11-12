@@ -102,7 +102,7 @@ export class Registry {
                         console.log("SOCKET DISCONNECTED: " + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
-                        if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
+                        // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
                         break
                 }           
             }) 

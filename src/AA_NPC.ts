@@ -1,4 +1,4 @@
-import { Coordinate, NpcInfo, NpcEvents } from './types.js'
+import { Coordinate, NPCInfo, NpcEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 
@@ -18,8 +18,8 @@ export class NPC{
         public BROKER_PORT: number
     ){
         this.position = {
-            x: Math.floor(Math.random() * 20) + 1, // posicion horizontal
-            y: Math.floor(Math.random() * 20) + 1 // posicion vertical
+            x: this.randomIntFromInterval(0,19), // posicion horizontal
+            y: this.randomIntFromInterval(0,19) // posicion vertical
         }
         this.level = Math.random() * 20 
         this.alias = 0
@@ -170,11 +170,15 @@ export class NPC{
         this.position.y + 1
     }
 
-    public get NPC(): NpcInfo{
+    public get NPC(): NPCInfo{
         return{
             alias: this.alias,
             level: this.level
         }
+    }
+
+    public randomIntFromInterval(min: number, max: number) { // min and max included 
+        return Math.floor(Math.random() * (max - min + 1) + min)
     }
 }
 
