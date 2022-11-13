@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
+import { config } from './config.js'
 
 const options: Options = {
     semi: false,
@@ -29,7 +30,7 @@ export class Registry {
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
-        if(!existsSync(this.paths.dataDir)) return {}
+        if (!existsSync(this.paths.dataFile('registry'))) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
         const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
@@ -112,8 +113,8 @@ export class Registry {
 }
 
 function main() {
-    const PORT = 6579
-    new Registry(Number(PORT)).Start()
+    const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6579
+    new Registry(REGISTRY_SERVER_PORT).Start()
 }
 
 main()

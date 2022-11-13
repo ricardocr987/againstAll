@@ -2,6 +2,7 @@ import { Coordinate, PlayerInfo, PlayerEvents, PlayerStream, EngineStream, Engin
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 import { KafkaUtil } from './kafka.js'
+import { config } from './config.js'
 
 export class Player {
     // PlayerInfo
@@ -129,12 +130,6 @@ export class Player {
         }) 
     }
 
-    // used in the different circumstances to finish the socket communication
-    public endSocket(socket: Socket){
-        socket.write(PlayerEvents.END)
-        socket.end()
-    }
-
     public startConnectionEngine() { // function that allows connection to the server engine, only for authentication
         this.askUserInfo()
         console.log(`Connecting to ${this.ENGINE_HOST}:${this.ENGINE_PORT}`) 
@@ -150,7 +145,6 @@ export class Player {
             socket.on("data", (data) => {
                 if(data.toString().includes("OK")){
                     this.showMenu()
-
                     this.endSocket(socket) // in all the menu posibilities, will end the socket connection
                 }
                 else {
@@ -180,12 +174,10 @@ export class Player {
         }) 
     }
 
-    public requestToJoinLobby(kafka: KafkaUtil) {
-        const event: PlayerStream = { // first message from the player to the engine in kafka to ask to join the lobby
-            event: PlayerEvents.REQUEST_TO_JOIN,
-            playerInfo: this.getPlayerInfo()
-        }
-        kafka.sendRecord(event)
+    // used in the different circumstances to finish the socket communication
+    public endSocket(socket: Socket){
+        socket.write(PlayerEvents.END)
+        socket.end()
     }
 
     // starts the kafka usage
@@ -200,10 +192,9 @@ export class Player {
                 eachMessage: async (payload) => { // payload: raw message from kafka
                     if (payload.message.value){ // true if the value is different from undefined
                         const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                        if (this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
-                            this.processMessage(engineMessage, kafka) // process the message from kafka cluster that was sent by the engine
-                            this.askMovement(kafka) // asks and send the event to the kafka cluster
-                        }
+                        // only matters if engine write the alias of the player or if it is for all players
+                        if (this.isEngineStreamReceiver(engineMessage)) this.processMessage(engineMessage, kafka) // process the message from kafka cluster that was sent by the engine
+                        this.askMovement(kafka) // asks and send the event to the kafka cluster
                     }
                     else {
                         console.log("Error: Received a undefined message")
@@ -220,9 +211,17 @@ export class Player {
         }
     }
 
+    public requestToJoinLobby(kafka: KafkaUtil) {
+        const event: PlayerStream = { // first message from the player to the engine in kafka to ask to join the lobby
+            event: PlayerEvents.REQUEST_TO_JOIN,
+            playerInfo: this.getPlayerInfo()
+        }
+        kafka.sendRecord(event)
+    }
+
     // true if the message includes the alias explicitly or if it a message for all
     public isEngineStreamReceiver (engineMessage: EngineStream): boolean { 
-        return engineMessage.playerAlias === this.alias || engineMessage.messageToAll == true
+        return engineMessage.playerAlias === this.alias || engineMessage.messageToAll === true
     }
 
     public printBoard(map: string[][]) {
@@ -291,8 +290,8 @@ export class Player {
                             break
 
                         case EngineEvents.TIE:
-                            if (message.map) this.printBoard(message.map)
                             if (message.position) this.position = message.position
+                            if (message.map) this.printBoard(message.map)
 
                             break
             
@@ -367,40 +366,101 @@ export class Player {
         }
     }
 
-    public moveN() { // si level = 0, throw error para terminar su partida y que no pueda moverse? preferible que se desconecte de la partida nada mas morir
-        this.position.x - 1
+    // external coordinates are connected to each other
+    public moveN() {
+        if(this.position.x === 0) {
+            this.position.x = 19
+        }
+        else {
+            this.position.x - 1
+        }
     }
 
     public moveS() {
-        this.position.x + 1
+        if(this.position.x === 19) {
+            this.position.x = 0
+        }
+        else {
+            this.position.x + 1
+        }
     }
 
     public moveW() {
-        this.position.y - 1
+        if(this.position.y === 0) {
+            this.position.y = 19
+        }
+        else {
+            this.position.y - 1
+        }
     }
 
     public moveE() {
-        this.position.y + 1
+        if(this.position.y === 19) {
+            this.position.y = 0
+        }
+        else {
+            this.position.y + 1
+        }
     }
 
     public moveNW() {
-        this.position.x - 1
-        this.position.y - 1
+        if(this.position.x === 0) {
+            this.position.x = 19
+        }
+        else {
+            this.position.x - 1
+        }
+        if(this.position.y === 0) {
+            this.position.y = 19
+        }
+        else {
+            this.position.y - 1
+        }
     }
 
     public moveNE() {
-        this.position.x + 1
-        this.position.y + 1
+        if(this.position.x === 19) {
+            this.position.x = 0
+        }
+        else {
+            this.position.x + 1
+        }
+        if(this.position.y === 19) {
+            this.position.y = 0
+        }
+        else {
+            this.position.y + 1
+        }
     }
 
     public moveSW() {
-        this.position.x + 1
-        this.position.y - 1
+        if(this.position.x === 19) {
+            this.position.x = 0
+        }
+        else {
+            this.position.x + 1
+        }
+        if(this.position.y === 0) {
+            this.position.y = 19
+        }
+        else {
+            this.position.y - 1
+        }
     }
 
     public moveSE() {
-        this.position.x - 1
-        this.position.y + 1
+        if(this.position.x === 0) {
+            this.position.x = 19
+        }
+        else {
+            this.position.x - 1
+        }
+        if(this.position.y === 19) {
+            this.position.y = 0
+        }
+        else {
+            this.position.y + 1
+        }
     }
 
     public modifyLevel(amount: number) {
@@ -413,16 +473,16 @@ export class Player {
 }
 
 function main() {
-    const ENGINE_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
-    const ENGINE_PORT = 5670
+    const ENGINE_SERVER_HOST = config.ENGINE_SERVER_HOST || "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+    const ENGINE_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5670
 
-    const REGISTRY_HOST = "localhost"
-    const REGISTRY_PORT = 6579
+    const REGISTRY_SERVER_HOST = config.REGISTRY_SERVER_HOST || "localhost"
+    const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6579
 
-    const KAFKA_HOST = "localhost"
-    const KAFKA_PORT = 9092 // el que este seleccionado en el docker-compose (KAFKA_LISTENERS)
+    const KAFKA_HOST = config.KAFKA_HOST || "localhost"
+    const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose (KAFKA_LISTENERS)
 
-    const player = new Player(ENGINE_HOST, ENGINE_PORT, REGISTRY_HOST, REGISTRY_PORT, KAFKA_HOST, KAFKA_PORT)
+    const player = new Player(ENGINE_SERVER_HOST, ENGINE_SERVER_PORT, REGISTRY_SERVER_HOST, REGISTRY_SERVER_PORT, KAFKA_HOST, KAFKA_PORT)
     player.initUser()
 }
 

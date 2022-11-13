@@ -24,6 +24,10 @@ export enum RegistryEvents {
 }
 
 export enum EngineEvents {
+    // EVENTS WITH WEATHER:
+    GET_CITY_INFO = "GET_CITY_INFO",
+
+    // EVENTS WITH PLAYER:
     PLAYER_CONNECTED_OK = "PLAYER_CONNECTED_OK", // player connected successfully with the engine (sockets & kafka)
     PLAYER_CONNECTED_ERROR = "PLAYER_CONNECTED_ERROR", // player couldnt connect with registry (sockets & kafka)
     GAME_NOT_PLAYABLE = "GAME_NOT_PLAYABLE", // when a player send a NEW_POSITION and the game has not started or already finished
@@ -38,9 +42,8 @@ export enum EngineEvents {
     TIE = "TIE", // when a player try to kill another and they tie
 }
 
-export enum WeatherEvents{
-    ASK = "ASK",
-    ASK_ERROR = "ASK_ERROR"
+export enum WeatherEvents {
+    WEATHER = "WEATHER",
 }
 
 export enum NpcEvents{
@@ -66,14 +69,8 @@ export type NPCInfo = {
     level: number
 }
 
-export type WeatherI = {
-    city: string
-    temperature: number
-}
-
 export type WeatherInfo = {
-    num: number
-    city: string
+    id: number
     temperature: number
 }
 

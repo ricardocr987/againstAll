@@ -42,7 +42,7 @@ export class KafkaUtil {
 
     public async startConsumer(){
         await this.consumer.connect()
-        await this.consumer.subscribe({ topic: `${this.topic}`, /*fromBeginning: true*/ })
+        await this.consumer.subscribe({ topic: `${this.topic}`, fromBeginning: true })
     }
 
     /*
