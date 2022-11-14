@@ -1,8 +1,3 @@
-export type Coordinate = {
-    x: number
-    y: number
-}
-
 export enum PlayerEvents {
     // Registry & engine authentication events
     SIGN_IN = "SIGN_IN",
@@ -46,9 +41,9 @@ export enum WeatherEvents {
     WEATHER = "WEATHER",
 }
 
-export enum NpcEvents{
-    END = "END",
-    SING_IN = "SING_IN"
+export type Coordinate = {
+    x: number
+    y: number
 }
 
 export type PlayerInfo = {

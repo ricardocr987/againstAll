@@ -1,7 +1,7 @@
 import { Server, Socket } from 'net'
 import { Paths } from './paths.js'
 import { existsSync, readFileSync } from 'fs'
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate, NPCInfo, WeatherInfo } from './types.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate, WeatherInfo } from './types.js'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
 
@@ -15,7 +15,7 @@ export class EngineServer {
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // map to store the registry related player's information where the key is the alias and the value is the player instance, gets data from DB
     public playerSockets: Record<string, Socket> = {} // map to store the socket information being the key the player alias and the value the socket instance, only works to close the server when there are no players
     public connectedPlayers: Record<string, PlayerInfo> = {} // map to store the player information being the key the player alias and the value the playerInfo
-    public connectedNPCs: Record<string, NPCInfo> = {} // same as connectedPlayers but with NPCs
+    public connectedNPCs: Record<string, PlayerInfo> = {} // same as connectedPlayers but with NPCs
     public cityInfo: Record<string, WeatherInfo> = {} // key: name of the city, value: weather info
 
     // FLAGS
@@ -216,9 +216,14 @@ export class EngineServer {
         switch (message.event){
             case PlayerEvents.REQUEST_TO_JOIN:
                 if (!this.gameStarted) {
-                    this.connectedPlayers[message.playerInfo.alias] = message.playerInfo
+                    if(message.playerInfo.alias.includes('NPC')) {
+                        this.connectedNPCs[message.playerInfo.alias] = message.playerInfo
+                    }
+                    else{
+                        this.connectedPlayers[message.playerInfo.alias] = message.playerInfo
+                    }
                     this.modifyBoard(message.playerInfo.alias, message.playerInfo.position)
-
+    
                     kafka.sendRecord({
                         event: EngineEvents.PLAYER_CONNECTED_OK,
                         playerAlias: `${message.playerInfo.alias}`
