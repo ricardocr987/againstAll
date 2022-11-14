@@ -192,10 +192,7 @@ export class EngineServer {
             socket.on("data", (data) => { // here is entered when the engine receives information from weather server
                 const [_, name, temperature] = data.toString().split(':')
                 console.log('Reciced from Weather server: ', name, temperature)
-                this.cityInfo[name] = {
-                    id: Object.values(this.cityInfo).length,
-                    temperature: Number(temperature)
-                }
+                this.cityInfo[name] = { temperature: Number(temperature) }
                 this.fillCitiesMap(name)
                 if (Object.values(this.cityInfo).length === 3) socket.end() 
                 this.printCityBoard()

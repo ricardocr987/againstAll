@@ -65,7 +65,6 @@ export type NPCInfo = {
 }
 
 export type WeatherInfo = {
-    id: number
     temperature: number
 }
 
