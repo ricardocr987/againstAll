@@ -59,11 +59,6 @@ export type RegistryPlayerInfo = {
     password: string
 }
 
-export type NPCInfo = {
-    alias: number
-    level: number
-}
-
 export type WeatherInfo = {
     temperature: number
 }
