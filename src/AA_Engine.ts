@@ -387,23 +387,23 @@ export class EngineServer {
     public getCitiesInfo() {
         console.log(`Connecting to ${this.WEATHER_HOST}:${this.WEATHER_PORT}`) 
 
-        let requestId = 0
-
         const socket = new Socket() 
         socket.connect(this.WEATHER_PORT, this.WEATHER_HOST) 
         socket.setEncoding("utf-8")
+
+        let requestId = 0
 
         socket.on("connect", () => {
             console.log(`Connected to Weather`) 
 
             socket.write(`${EngineEvents.GET_CITY_INFO}`)
+            console.log('doind a city request')
 
             socket.on("data", (data) => { // here is entered when the engine receives information from weather server
                 const [_, name, temperature] = data.toString().split(':')
                 console.log(`received: ${name} ${temperature}`)
                 this.cityInfo[name] = Number(temperature)
                 this.cityNames.push(name)
-
                 requestId++
 
                 if(requestId < 4) {
@@ -451,20 +451,20 @@ function main() {
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose
 
     const WEATHER_HOST = config.WEATHER_HOST || "localhost"
-    const WEATHER_PORT = Number(config.WEATHER_PORT) || 5352
+    const WEATHER_PORT = Number(config.WEATHER_PORT) || 5365
 
     const MAX_PLAYERS = Number(config.MAX_PLAYERS) || 5
 
     const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_HOST, WEATHER_PORT, MAX_PLAYERS)
-    engine.startAuthentication()
+    //engine.startAuthentication()
     
     setTimeout(() => {
-        engine.io.close()
+        //engine.io.close()
         engine.getCitiesInfo()
         setTimeout(async () => {
-            await engine.newGame()
-        }, 2000)
-    }, 10000)
+            //await engine.newGame()
+        }, 20000)
+    }, 0)
 }
 
 main()
