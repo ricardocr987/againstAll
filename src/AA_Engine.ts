@@ -451,7 +451,7 @@ function main() {
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose
 
     const WEATHER_HOST = config.WEATHER_HOST || "localhost"
-    const WEATHER_PORT = Number(config.WEATHER_PORT) || 5365
+    const WEATHER_PORT = Number(config.WEATHER_PORT) || 5366
 
     const MAX_PLAYERS = Number(config.MAX_PLAYERS) || 5
 

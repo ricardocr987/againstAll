@@ -68,7 +68,7 @@ export class Weather{
         let randomNum = -1
         while (true) {
             randomNum = this.randomIntFromInterval(0, Object.keys(this.cities).length - 1)
-            if (this.citiesSent[randomNum]) break
+            if (!this.citiesSent[randomNum]) break
         }
         this.citiesSent.push(randomNum)
 
@@ -96,7 +96,7 @@ export class Weather{
 }
 
 function main() {
-    const WEATHER_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5365
+    const WEATHER_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5366
     new Weather(WEATHER_SERVER_PORT).Start()
 }
 
