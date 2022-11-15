@@ -427,6 +427,11 @@ export class Player extends CommonPlayer {
     // starts the kafka usage
     public async joinGame() {
         const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+
+        await kafka.producer.connect()
+        await kafka.consumer.connect()
+        await kafka.consumer.subscribe({ topic: 'engineMessages', fromBeginning: true })
+        
         this.requestToJoinLobby(kafka) // send the message to join the lobby
         console.log('Wating for the game to start...')
 
@@ -481,7 +486,7 @@ export class Player extends CommonPlayer {
 
 async function main() {
     const ENGINE_SERVER_HOST = config.ENGINE_SERVER_HOST || "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
-    const ENGINE_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5670
+    const ENGINE_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5886
 
     const REGISTRY_SERVER_HOST = config.REGISTRY_SERVER_HOST || "localhost"
     const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6579

@@ -6,9 +6,10 @@
 
 *Pasos para desplegar:*
 
-1. npm run start
-2. ./scripts/start-kafka.sh
-3. ./scripts/create-topics.sh
-3. npm run start:registry
-4. npm run start:engine
-5. npm run start:player
+1. docker-compose up
+2. ./create-topics.sh 
+3. npm run start
+4. npm run start:registry
+5. npm run start:weather
+6. npm run start:engine
+7. npm run start:player

@@ -59,10 +59,6 @@ export type RegistryPlayerInfo = {
     password: string
 }
 
-export type WeatherInfo = {
-    temperature: number
-}
-
 // Union of the different types of stream used in kafka
 export type UnionStream = PlayerStream | EngineStream
 

@@ -1,5 +1,5 @@
 export const kafkaConfig = {
-    brokers: ['broker:9092'],
+    brokers: ['localhost:9092'],
     connectionTimeout: 3000, // time in milliseconds to wait for a successful connection
     requestTimeout: 2500, // '' for a request
 }

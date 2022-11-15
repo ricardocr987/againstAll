@@ -31,18 +31,6 @@ export class KafkaUtil {
         this.consumer = this.consumerClient.consumer({ groupId: `${clientType}` })
 
         this.topic = topic
-
-        this.startProducer()
-        this.startConsumer()
-    }
-
-    public async startProducer(){
-        await this.producer.connect()
-    }
-
-    public async startConsumer(){
-        await this.consumer.connect()
-        await this.consumer.subscribe({ topic: `${this.topic}`, fromBeginning: true })
     }
 
     /*

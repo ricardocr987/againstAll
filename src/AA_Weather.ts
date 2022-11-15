@@ -2,7 +2,7 @@ import { Paths } from './paths.js'
 import { existsSync, writeFileSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
-import { EngineEvents, WeatherEvents, WeatherInfo } from './types.js'
+import { WeatherEvents } from './types.js'
 import { config } from './config.js'
 
 const options: Options = {
@@ -23,7 +23,9 @@ export class Weather{
 
     // MAPS
     public cities: Record<number, string> = {} // key: number (id), value: city name
-    public infoWeather: Record<string, WeatherInfo> = {} // key: city name, value: weather of that city
+    public infoWeather: Record<string, string> = {} // key: city name, value: weather of that city
+
+    public citiesSent: number[] = [] // id of ther city sent, to no repeat cities
 
     constructor(        
         public SERVER_PORT: number,
@@ -56,14 +58,17 @@ export class Weather{
 
     public addWeatherInfo () {
         for (let i = 0; i < Object.keys(this.cities).length; i++) {
-            this.infoWeather[this.cities[i]] = { temperature: this.randomIntFromInterval(-35, 35) }
+            this.infoWeather[this.cities[i]] = this.randomIntFromInterval(-35, 35).toString()
         }
 
-        writeFileSync(this.paths.dataFile("weathers"), format(JSON.stringify(this.cities).trim(), options))   
+        writeFileSync(this.paths.dataFile("weathers"), format(JSON.stringify(this.infoWeather).trim(), options))   
     }
 
     public getRandomWeather() {
-        const randomNum = this.randomIntFromInterval(0, Object.keys(this.cities).length)
+        let randomNum = -1
+        while (!this.citiesSent.includes(randomNum)) randomNum = this.randomIntFromInterval(0, Object.keys(this.cities).length - 1)
+        this.citiesSent.push(randomNum)
+
         return [this.cities[randomNum], this.infoWeather[this.cities[randomNum]]]
     }
 
@@ -73,13 +78,10 @@ export class Weather{
             console.log(`New connection from ${remoteSocket}`)
             socket.setEncoding("utf-8") // each time it receives a message it automatically decodes the message, converting it from bytes to an understandable string.
         
-            socket.on("data", (message) => { // when you send a message from the client, (socket.write) -> you receive a Buffer (bytes) that needs to be decoded, to convert it into a string .toString()
-                switch(message.toString()){
-                    case EngineEvents.GET_CITY_INFO:
-                        const [cityName, cityWeather] = this.getRandomWeather()
-                        socket.write(`${WeatherEvents.WEATHER}:${cityName}:${cityWeather}`)
-                        break
-                }
+            socket.on("data", () => { // when you send a message from the client, (socket.write) -> you receive a Buffer (bytes) that needs to be decoded, to convert it into a string .toString()
+                const [cityName, cityWeather] = this.getRandomWeather()
+                console.log('sending: ', cityName, cityWeather)
+                socket.write(`${WeatherEvents.WEATHER}:${cityName}:${cityWeather}`)
             })
         })
         this.io.listen(this.SERVER_PORT)
@@ -91,7 +93,7 @@ export class Weather{
 }
 
 function main() {
-    const WEATHER_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5670
+    const WEATHER_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5352
     new Weather(WEATHER_SERVER_PORT).Start()
 }
 
