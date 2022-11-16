@@ -144,99 +144,55 @@ export abstract class CommonPlayer {
 
     // external coordinates are connected to each other
     public moveN() {
-        if(this.position.x === 0) {
-            this.position.x = 19
-        }
-        else {
-            this.position.x - 1
-        }
+        this.position.x--
+        if (this.position.x === -1) this.position.x = 19
     }
 
     public moveS() {
-        if(this.position.x === 19) {
-            this.position.x = 0
-        }
-        else {
-            this.position.x + 1
-        }
+        this.position.x++
+        if (this.position.x === 20) this.position.x = 0
     }
 
     public moveW() {
-        if(this.position.y === 0) {
-            this.position.y = 19
-        }
-        else {
-            this.position.y - 1
-        }
+        this.position.y--
+        if (this.position.x === -1) this.position.y = 19
     }
 
     public moveE() {
-        if(this.position.y === 19) {
-            this.position.y = 0
-        }
-        else {
-            this.position.y + 1
-        }
+        this.position.y++
+        if (this.position.y === 20) this.position.y = 0
     }
 
     public moveNW() {
-        if(this.position.x === 0) {
-            this.position.x = 19
-        }
-        else {
-            this.position.x - 1
-        }
-        if(this.position.y === 0) {
-            this.position.y = 19
-        }
-        else {
-            this.position.y - 1
-        }
+        this.position.x--
+        if (this.position.x === -1) this.position.x = 19
+        
+        this.position.y--
+        if (this.position.x === -1) this.position.y = 19
     }
 
     public moveNE() {
-        if(this.position.x === 19) {
-            this.position.x = 0
-        }
-        else {
-            this.position.x + 1
-        }
-        if(this.position.y === 19) {
-            this.position.y = 0
-        }
-        else {
-            this.position.y + 1
-        }
+        this.position.x--
+        if (this.position.x === -1) this.position.x = 19
+
+        this.position.y++
+        if (this.position.y === 20) this.position.y = 0
     }
 
     public moveSW() {
-        if(this.position.x === 19) {
-            this.position.x = 0
-        }
-        else {
-            this.position.x + 1
-        }
-        if(this.position.y === 0) {
-            this.position.y = 19
-        }
-        else {
-            this.position.y - 1
-        }
+        this.position.x++
+        if (this.position.x === 20) this.position.x = 0
+
+        this.position.y--
+        if (this.position.x === -1) this.position.y = 19
     }
 
     public moveSE() {
-        if(this.position.x === 0) {
-            this.position.x = 19
-        }
-        else {
-            this.position.x - 1
-        }
-        if(this.position.y === 19) {
-            this.position.y = 0
-        }
-        else {
-            this.position.y + 1
-        }
+        this.position.x++
+        if (this.position.x === 20) this.position.x = 0
+
+        this.position.y++
+        if (this.position.y === 20) this.position.y = 0
     }
 
     public modifyLevel(amount: number) {
@@ -415,6 +371,7 @@ export class Player extends CommonPlayer {
                     if (Number(payload.message.timestamp) > this.timestamp) {
                         if (payload.message.value){ // true if the value is different from undefined
                             const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
+                            console.log(engineMessage)
                             if (!this.messagesRead.includes(engineMessage.id)) { // i want to make sure all the messages are read only one time
                                 if (this.startedGame) {
                                     // only matters if engine write the alias of the player or if it is for all players
@@ -461,8 +418,12 @@ export class Player extends CommonPlayer {
             if (!this.movementSet.has(this.answer)) console.log('Please introduce N, S, W, E, NW, NE, SW or SE')
         }
 
+        console.log('before: ', this.position)
+
         this.changePosition(this.answer)
         this.answer = '' // because the upper while
+
+        console.log('after: ', this.position)
 
         const event: PlayerStream = {
             id: uuid(),

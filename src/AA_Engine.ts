@@ -153,10 +153,10 @@ export class EngineServer {
         try {
             await kafka.consumer.run({ 
                 eachMessage: async (payload) => { // payload: raw message from kafka
-                    console.log(payload)
                     if (Number(payload.message.timestamp) > this.timestamp) {
                         if (payload.message.value){ // true if message is != undefined
                             const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
+                            console.log(playerMessage)
                             if (!this.messagesRead.includes(playerMessage.id)) { // i want to make sure all the messages are read only one time
                                 if (!this.connectedNPCs[playerMessage.playerInfo.alias] || !this.connectedNPCs[playerMessage.playerInfo.alias]) this.initilizePlayerInfo(playerMessage.playerInfo)                  
                                 await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
@@ -216,7 +216,7 @@ export class EngineServer {
 
     // it overrides the content of a position by introducing the new content 
     public modifyBoard(toIntroduce: string, position: Coordinate) { 
-        this.map[position.x][position.y] = toIntroduce // modifies the content of the map 
+        this.map[position.x][position.y] = toIntroduce // modifies the content of the map
         if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
         // position updated in the playersInfo map
     }
@@ -242,6 +242,7 @@ export class EngineServer {
                     break
                 case 'A': // food, levels up in the players info map and sends the event to the player
                     this.modifyBoard(playerInfo.alias, newPosition)
+
                     await kafka.sendRecord({
                         id: uuid(),
                         event: EngineEvents.MOVEMENT_OK,
@@ -270,21 +271,25 @@ export class EngineServer {
                 playerAlias: playerInfo.alias
             })
         }
+        this.printBoard()
     }
 
     // manages the process for deciding who wins the match, also handles the sending of the correspondings messages
     public async decideWinner (actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo, kafka: KafkaUtil, previousPosition: Coordinate, newPosition: Coordinate) {
         const temperature = this.getCityTemperature(newPosition)
         const [actualPlayerLevel, attackedPlayerLevel] = this.getPlayersLevel(temperature, actualPlayer, attackedPlayer)
+        
         if (actualPlayerLevel > attackedPlayerLevel) {
             // WINNER
             this.modifyBoard(actualPlayer.alias, newPosition) // position updated in the game map/board
+            this.modifyBoard(' ', previousPosition)
 
             await kafka.sendRecord({
                 id: uuid(),
                 event: EngineEvents.MOVEMENT_OK,
                 event2: EngineEvents.KILL,
-                playerAlias: actualPlayer.alias
+                playerAlias: actualPlayer.alias,
+                map: this.map
             })
 
             // LOSER
@@ -298,7 +303,8 @@ export class EngineServer {
         }
         else {
             if (actualPlayerLevel < attackedPlayerLevel) {
-                // WINNER: doesnt need to be modified
+                // WINNER:
+
                 // LOSER
                 delete this.connectedPlayers[attackedPlayer.alias]
 
@@ -343,8 +349,8 @@ export class EngineServer {
 
     // fill map with mines and food
     public fillMap () {
-        const minesNumber = this.randomIntFromInterval(0,19) // random number between 1-20
-        const foodNumber = this.randomIntFromInterval(0,19)
+        const minesNumber = this.randomIntFromInterval(0, 30)
+        const foodNumber = this.randomIntFromInterval(0, 30)
 
         for (let i = 0; i < minesNumber; i++) {
             const position = this.getFreeRandomPosition()
@@ -357,6 +363,7 @@ export class EngineServer {
         }
 
         this.filledMap = true
+        this.printBoard()
     }
 
     // returns always a free coordinate

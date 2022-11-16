@@ -47,7 +47,7 @@ export class Weather{
     }
 
     public addCitiesNames () {
-        const cities = ['Alicante', 'Paris', 'London', 'Berlin', 'Munich', 'Valencia', 'Manchester', 'Milan', 'Liverpool', 'Napoles', 'Hong Kong', 'Medillin', 'Murcia', 'Granada', 'Venecia', 'Prague', 'Krakow', 'Moscow']
+        const cities = ['Alicante', 'Paris', 'London', 'Berlin', 'Munich', 'Valencia', 'Manchester', 'Milan', 'Liverpool', 'Napoles', 'Hong Kong', 'Medellin', 'Murcia', 'Granada', 'Venecia', 'Prague', 'Krakow', 'Moscow']
 
         for (let i = 0; i < cities.length; i++) {
             this.cities[i] = cities[i]
