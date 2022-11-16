@@ -3,6 +3,7 @@ import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
+import { v4 as uuid } from 'uuid'
 
 // aggregates same functionalities for players and NPCs
 export abstract class CommonPlayer {
@@ -14,10 +15,12 @@ export abstract class CommonPlayer {
     public coldEffect: number
     public hotEffect: number
 
+    public timestamp: number = Date.now()
+    public messagesRead: string[] = []
+
     // Flags to identify the phase of the game
     public startedGame = false
     public finishedGame = false
-    public joined = false
 
     constructor() {
         this.position = {
@@ -33,14 +36,6 @@ export abstract class CommonPlayer {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
-    public requestToJoinLobby(kafka: KafkaUtil) {
-        const event: PlayerStream = { // first message from the player to the engine in kafka to ask to join the lobby
-            event: PlayerEvents.REQUEST_TO_JOIN,
-            playerInfo: this.getPlayerInfo()
-        }
-        kafka.sendRecord(event)
-    }
-
     // true if the message includes the alias explicitly or if it a message for all
     public isEngineStreamReceiver (engineMessage: EngineStream): boolean { 
         return engineMessage.playerAlias === this.alias || engineMessage.messageToAll === true
@@ -50,38 +45,16 @@ export abstract class CommonPlayer {
         console.table(map)
     }
 
-    public processMessage(message: EngineStream, kafka: KafkaUtil){
+    public processMessage(message: EngineStream, /*kafka: KafkaUtil*/){
         switch (message.event){
-            case EngineEvents.PLAYER_CONNECTED_OK:
-                this.joined = true
-                console.log('You have joined successfully to the lobby')
-
-                break
-            case EngineEvents.PLAYER_CONNECTED_ERROR: // when someone try to REQUEST_TO_JOIN but the game already started
-                console.log(message.playerAlias, ' could not connect because: ', message.error)
-                kafka.pauseConsumer()
-
-                break
             case EngineEvents.GAME_NOT_PLAYABLE: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
                 console.log(message.playerAlias, ': ', message.error)
-                if (this.finishedGame) kafka.pauseConsumer()
-
-                break
-
-            case EngineEvents.GAME_STARTED:
-                if (this.joined) { // if true is because the player was a confirmed joined player with engine
-                    console.log(message.playerAlias, ': THE GAME HAS STARTED!')
-                    if (message.map) this.printBoard(message.map)
-                }
-                else { // it could happen that the player receives this message as first one, it wont be able to join
-                    console.log('Sorry the game has already started and you cant join to this session')
-                    kafka.pauseConsumer()
-                }
+                // if (this.finishedGame) kafka.pauseConsumer()
 
                 break
             
             case EngineEvents.GAME_ENDED:
-                kafka.pauseConsumer()
+                //kafka.pauseConsumer()
                 this.finishedGame = true
 
                 console.log('The game has ended')
@@ -89,7 +62,7 @@ export abstract class CommonPlayer {
                 break
             
             case EngineEvents.DEATH:
-                kafka.pauseConsumer()
+                //kafka.pauseConsumer()
                 this.finishedGame = true
 
                 console.log('You lost, someone killed you')
@@ -430,23 +403,38 @@ export class Player extends CommonPlayer {
 
         await kafka.producer.connect()
         await kafka.consumer.connect()
-        await kafka.consumer.subscribe({ topic: 'engineMessages', fromBeginning: true })
+
+        await kafka.consumer.subscribe({ topic: 'engineMessages', /*fromBeginning: true*/ })
         
-        this.requestToJoinLobby(kafka) // send the message to join the lobby
         console.log('Wating for the game to start...')
 
         try {
             // here enters to a loop and starts to consume all the messages from kafka
             await kafka.consumer.run({ 
                 eachMessage: async (payload) => { // payload: raw message from kafka
-                    if (payload.message.value){ // true if the value is different from undefined
-                        const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                        // only matters if engine write the alias of the player or if it is for all players
-                        if (this.isEngineStreamReceiver(engineMessage)) this.processMessage(engineMessage, kafka) // process the message from kafka cluster that was sent by the engine
-                        this.askMovement(kafka) // asks and send the event to the kafka cluster
-                    }
-                    else {
-                        console.log("Error: Received a undefined message")
+                    if (Number(payload.message.timestamp) > this.timestamp) {
+                        if (payload.message.value){ // true if the value is different from undefined
+                            const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
+                            if (!this.messagesRead.includes(engineMessage.id)) { // i want to make sure all the messages are read only one time
+                                if (this.startedGame) {
+                                    // only matters if engine write the alias of the player or if it is for all players
+                                    if (this.isEngineStreamReceiver(engineMessage)){
+                                        this.processMessage(engineMessage, /*kafka*/) // process the message from kafka cluster that was sent by the engine
+                                        this.messagesRead.push(engineMessage.id)
+                                    }
+                                }
+        
+                                // we will process the kafka messages after receiving this event from the engine
+                                if (engineMessage.event == EngineEvents.GAME_STARTED) {
+                                    this.startedGame = true
+                                    console.log('THE GAME HAS JUST STARTED')
+                                }
+                                await this.askMovement(kafka) // asks and send the event to the kafka cluster
+                            }
+                        }
+                        else {
+                            console.log("Error: Received a undefined message")
+                        }
                     }
                 }
             })
@@ -466,7 +454,7 @@ export class Player extends CommonPlayer {
         socket.end()
     }
 
-    public askMovement(kafka: KafkaUtil) {
+    public async askMovement(kafka: KafkaUtil) {
         while(!this.movementSet.has(this.answer)){
             console.log("Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ")
             this.answer = this.prompt("")
@@ -474,13 +462,21 @@ export class Player extends CommonPlayer {
         }
 
         this.changePosition(this.answer)
+        this.answer = '' // because the upper while
 
         const event: PlayerStream = {
+            id: uuid(),
             event: PlayerEvents.NEW_POSITION,
-            playerInfo: this.getPlayerInfo()
+            playerInfo: {
+                alias: this.alias,
+                position: this.position,
+                baseLevel: this.baseLevel,
+                coldEffect: this.coldEffect,
+                hotEffect: this.hotEffect,
+            }
         }
 
-        kafka.sendRecord(event)
+        await kafka.sendRecord(event)
     }
 }
 

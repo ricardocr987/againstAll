@@ -4,8 +4,7 @@ export enum PlayerEvents {
     SIGN_UP = "SIGN_UP",
     EDIT_PROFILE = "EDIT_PROFILE",
     END = "END",
-    // Kafka events
-    REQUEST_TO_JOIN = "REQUEST_TO_JOIN",
+    // Kafka event
     NEW_POSITION = "NEW_POSITION",
 }
 
@@ -23,8 +22,8 @@ export enum EngineEvents {
     GET_CITY_INFO = "GET_CITY_INFO",
 
     // EVENTS WITH PLAYER:
-    PLAYER_CONNECTED_OK = "PLAYER_CONNECTED_OK", // player connected successfully with the engine (sockets & kafka)
-    PLAYER_CONNECTED_ERROR = "PLAYER_CONNECTED_ERROR", // player couldnt connect with registry (sockets & kafka)
+    PLAYER_CONNECTED_OK = "PLAYER_CONNECTED_OK", // player connected successfully with the engine (sockets)
+    PLAYER_CONNECTED_ERROR = "PLAYER_CONNECTED_ERROR", // player couldnt connect with registry (sockets)
     GAME_NOT_PLAYABLE = "GAME_NOT_PLAYABLE", // when a player send a NEW_POSITION and the game has not started or already finished
     GAME_STARTED = "GAME_STARTED", // engine send to the players a stream to inform them that the game has just started 
     MOVEMENT_OK = "MOVEMENT_OK", // the movement sent by the player was successfully updated in the engine
@@ -64,12 +63,14 @@ export type UnionStream = PlayerStream | EngineStream
 
 // Kafka Player Stream
 export type PlayerStream = {
+    id: string
     event: PlayerEvents // event type
     playerInfo: PlayerInfo // all player info
 }
 
 // Kafka EngineStream
 export type EngineStream = {
+    id: string
     event: EngineEvents // event type
     event2?: EngineEvents // secondary event type, MOVEMENT_OK could include another event (KILL, DEATH, etc.)
     playerAlias?: string // player alias who will receive the stream (? means that could be undefined)

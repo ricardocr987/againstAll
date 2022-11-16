@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'fs'
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate } from './types.js'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
+import { v4 as uuid } from 'uuid'
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // is simply an object to make it easy to get the path to e.g. the database
@@ -20,12 +21,14 @@ export class EngineServer {
     public cityInfo: Record<string, number> = {} // key: name of the city, value: weather info
 
     // FLAGS
-    public gameStarted: boolean = false
     public gameFinished: boolean = false
     public filledMap: boolean = false
     
     public map: string[][] // stores the game map
     public cityMap: string[][] // stores the city names, each position has its corresponding city name
+
+    public timestamp: number = Date.now()
+    public messagesRead: string[] = []
 
     constructor(        
         public SERVER_PORT: number,
@@ -131,27 +134,34 @@ export class EngineServer {
     }
 
     public async newGame() {
-        const kafka = new KafkaUtil('server', 'engine', 'playerMessages')
+        const kafka = new KafkaUtil('server', 'engine', 'playerMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+
         await kafka.producer.connect()
         await kafka.consumer.connect()
-        await kafka.consumer.subscribe({ topic: 'playerMessages', fromBeginning: true })
+
+        await kafka.consumer.subscribe({ topic: 'playerMessages'/*, fromBeginning: true */})
+
+        if (!this.filledMap) this.fillMap()
+
+        await kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
+            id: uuid(),
+            event: EngineEvents.GAME_STARTED,
+            messageToAll: true
+        })
+        console.log("THE GAME HAS STARTED!")
 
         try {
             await kafka.consumer.run({ 
                 eachMessage: async (payload) => { // payload: raw message from kafka
-                    if (payload.message.value){ // true if message is != undefined
-                        const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
-                        this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
-                        if (!this.gameStarted) { // in the case the game hasnt started...
-                            this.gameStarted = true // ...starts the game...
-                            kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
-                                event: EngineEvents.GAME_STARTED,
-                                messageToAll: true
-                            })
-                            console.log("THE GAME HAS STARTED!")
-                        }
-                        else {
-                            if (!this.filledMap) this.fillMap()
+                    console.log(payload)
+                    if (Number(payload.message.timestamp) > this.timestamp) {
+                        if (payload.message.value){ // true if message is != undefined
+                            const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
+                            if (!this.messagesRead.includes(playerMessage.id)) { // i want to make sure all the messages are read only one time
+                                if (!this.connectedNPCs[playerMessage.playerInfo.alias] || !this.connectedNPCs[playerMessage.playerInfo.alias]) this.initilizePlayerInfo(playerMessage.playerInfo)                  
+                                await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
+                                this.messagesRead.push(playerMessage.id)
+                            }
                         }
                     }
                 }
@@ -168,6 +178,16 @@ export class EngineServer {
         // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
     }
 
+    public initilizePlayerInfo(playerInfo: PlayerInfo) {
+        if (playerInfo.alias.includes('NPC')) {
+            this.connectedNPCs[playerInfo.alias] = playerInfo
+        }
+        else {
+            this.connectedPlayers[playerInfo.alias] = playerInfo
+        }
+        this.modifyBoard(playerInfo.alias, playerInfo.position)
+    }
+
     /* 
         Engine only receives two kind of events:
         - REQUEST_TO_JOIN: 
@@ -177,42 +197,19 @@ export class EngineServer {
             - If the game hasnt started or already finished, sends GAME_NOT_PLAYABLE, here the player to move without the game being ready
             - Else, the position of the player have to be modified in the board and is needed to send a record about the player's situation after this event
     */
-    public processMessage(message: PlayerStream, kafka: KafkaUtil){
+    public async processMessage(message: PlayerStream, kafka: KafkaUtil){
         switch (message.event){
-            case PlayerEvents.REQUEST_TO_JOIN:
-                if (!this.gameStarted) {
-                    if(message.playerInfo.alias.includes('NPC')) {
-                        this.connectedNPCs[message.playerInfo.alias] = message.playerInfo
-                    }
-                    else{
-                        this.connectedPlayers[message.playerInfo.alias] = message.playerInfo
-                    }
-                    this.modifyBoard(message.playerInfo.alias, message.playerInfo.position)
-    
-                    kafka.sendRecord({
-                        event: EngineEvents.PLAYER_CONNECTED_OK,
-                        playerAlias: `${message.playerInfo.alias}`
-                    })
-                    console.log(`Player ${message.playerInfo.alias} connected to the lobby`)
-                }
-                else {
-                    kafka.sendRecord({
-                        event: EngineEvents.PLAYER_CONNECTED_ERROR,
-                        playerAlias: `${message.playerInfo.alias}`,
-                        error: 'game already started'
-                    })
-                }
-                break
             case PlayerEvents.NEW_POSITION:
-                if (!this.gameStarted || this.gameFinished) {
-                    kafka.sendRecord({
+                if (this.gameFinished) {
+                    await kafka.sendRecord({
+                        id: uuid(),
                         event: EngineEvents.GAME_NOT_PLAYABLE,
                         playerAlias: `${message.playerInfo.alias}`,
                         error: 'game not playable now (not started/finished)'
                     })
                 }
                 else {
-                    this.updateBoard(message.playerInfo, kafka)
+                    await this.updateBoard(message.playerInfo, kafka)
                 }
         }
     }
@@ -224,7 +221,7 @@ export class EngineServer {
         // position updated in the playersInfo map
     }
 
-    public updateBoard(playerInfo: PlayerInfo, kafka: KafkaUtil) {
+    public async updateBoard(playerInfo: PlayerInfo, kafka: KafkaUtil) {
         const previousPosition = this.connectedPlayers[playerInfo.alias].position // stores the previous position, to delete the player there
         this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
 
@@ -234,7 +231,8 @@ export class EngineServer {
         if(newPositionContent !== ' ') { // if that coordinate was already occupied, we need to manage the situation
             switch (newPositionContent) {
                 case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
-                    kafka.sendRecord({
+                    await kafka.sendRecord({
+                        id: uuid(),
                         event: EngineEvents.MOVEMENT_OK,
                         event2: EngineEvents.DEATH,
                         playerAlias: playerInfo.alias,
@@ -244,7 +242,8 @@ export class EngineServer {
                     break
                 case 'A': // food, levels up in the players info map and sends the event to the player
                     this.modifyBoard(playerInfo.alias, newPosition)
-                    kafka.sendRecord({
+                    await kafka.sendRecord({
+                        id: uuid(),
                         event: EngineEvents.MOVEMENT_OK,
                         event2: EngineEvents.LEVEL_UP,
                         playerAlias: playerInfo.alias,
@@ -255,7 +254,7 @@ export class EngineServer {
                     break
                 default:
                     if (this.connectedPlayers[newPositionContent]) { // if it is a player
-                        this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
+                        await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
                     }
                     else { // if it is a NPC
 
@@ -265,7 +264,8 @@ export class EngineServer {
         else { // if it was free, it isnt needed to manage the situation
             this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
 
-            kafka.sendRecord({
+            await kafka.sendRecord({
+                id: uuid(),
                 event: EngineEvents.MOVEMENT_OK,
                 playerAlias: playerInfo.alias
             })
@@ -273,14 +273,15 @@ export class EngineServer {
     }
 
     // manages the process for deciding who wins the match, also handles the sending of the correspondings messages
-    public decideWinner (actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo, kafka: KafkaUtil, previousPosition: Coordinate, newPosition: Coordinate) {
+    public async decideWinner (actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo, kafka: KafkaUtil, previousPosition: Coordinate, newPosition: Coordinate) {
         const temperature = this.getCityTemperature(newPosition)
         const [actualPlayerLevel, attackedPlayerLevel] = this.getPlayersLevel(temperature, actualPlayer, attackedPlayer)
         if (actualPlayerLevel > attackedPlayerLevel) {
             // WINNER
             this.modifyBoard(actualPlayer.alias, newPosition) // position updated in the game map/board
 
-            kafka.sendRecord({
+            await kafka.sendRecord({
+                id: uuid(),
                 event: EngineEvents.MOVEMENT_OK,
                 event2: EngineEvents.KILL,
                 playerAlias: actualPlayer.alias
@@ -289,7 +290,8 @@ export class EngineServer {
             // LOSER
             delete this.connectedPlayers[attackedPlayer.alias]
 
-            kafka.sendRecord({
+            await kafka.sendRecord({
+                id: uuid(),
                 event: EngineEvents.DEATH,
                 playerAlias: attackedPlayer.alias
             })
@@ -300,7 +302,8 @@ export class EngineServer {
                 // LOSER
                 delete this.connectedPlayers[attackedPlayer.alias]
 
-                kafka.sendRecord({
+                await kafka.sendRecord({
+                    id: uuid(),
                     event: EngineEvents.DEATH,
                     playerAlias: attackedPlayer.alias
                 })
@@ -308,7 +311,8 @@ export class EngineServer {
             else { // tie, ie: same level both
                 this.modifyBoard(actualPlayer.alias, previousPosition) // position updated in the game map/board
 
-                kafka.sendRecord({
+                await kafka.sendRecord({
+                    id: uuid(),
                     event: EngineEvents.MOVEMENT_OK,
                     event2: EngineEvents.TIE,
                     map: this.map,
@@ -462,7 +466,7 @@ function main() {
         setTimeout(async () => {
             await engine.newGame()
         }, 10000)
-    }, 40000)
+    }, 10000)
 }
 
 main()

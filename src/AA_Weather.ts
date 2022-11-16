@@ -66,10 +66,13 @@ export class Weather{
 
     public getRandomWeather() {
         let randomNum = -1
-        while (true) {
+        let check = false
+
+        while (!check) {
             randomNum = this.randomIntFromInterval(0, Object.keys(this.cities).length - 1)
-            if (!this.citiesSent[randomNum]) break
+            if (!this.citiesSent.includes(randomNum)) check = true
         }
+
         this.citiesSent.push(randomNum)
 
         return [this.cities[randomNum], this.infoWeather[this.cities[randomNum]]]

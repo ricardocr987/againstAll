@@ -1,6 +1,7 @@
 import { EngineStream, PlayerStream, PlayerEvents } from './types.js'
 import { CommonPlayer } from './AA_Player.js'
 import { KafkaUtil } from './kafka.js'
+import { v4 as uuid } from 'uuid'
 
 export class NPC extends CommonPlayer {
     public movementsArray: string[] = ['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE']
@@ -15,7 +16,6 @@ export class NPC extends CommonPlayer {
         this.alias += this.randomIntFromInterval(0, 99).toString() // added an random id to the alias 'NPC'
 
         const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
-        this.requestToJoinLobby(kafka) // send the message to join the lobby
         console.log('Wating for the game to start...')
 
         try {
@@ -25,7 +25,7 @@ export class NPC extends CommonPlayer {
                     if (payload.message.value){ // true if the value is different from undefined
                         const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
                         // only matters if engine write the alias of the player or if it is for all players
-                        if (this.isEngineStreamReceiver(engineMessage)) this.processMessage(engineMessage, kafka) // process the message from kafka cluster that was sent by the engine
+                        if (this.isEngineStreamReceiver(engineMessage)) this.processMessage(engineMessage, /*kafka*/) // process the message from kafka cluster that was sent by the engine
                         await this.sendNewMovement(kafka) // asks and send the event to the kafka cluster
                     }
                     else {
@@ -49,6 +49,7 @@ export class NPC extends CommonPlayer {
         this.changePosition(movement)
 
         const event: PlayerStream = {
+            id: uuid(),
             event: PlayerEvents.NEW_POSITION,
             playerInfo: this.getPlayerInfo()
         }
