@@ -23,6 +23,7 @@
     "clean:all": "rm -rf ./node_modules && rm -rf ./dist && rm -rf package-lock.json"
   },
   "devDependencies": {
+    "@types/dotenv-defaults": "^2.0.1",
     "@types/node": "^18.11.0",
     "@types/prettier": "^2.7.1",
     "@types/prompt-sync": "^4.2.0",

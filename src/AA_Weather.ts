@@ -96,7 +96,7 @@ export class Weather{
 }
 
 function main() {
-    const WEATHER_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5366
+    const WEATHER_SERVER_PORT = Number(config.WEATHER_SERVER_PORT) || 5366
     new Weather(WEATHER_SERVER_PORT).Start()
 }
 

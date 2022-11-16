@@ -143,15 +143,12 @@ export class EngineServer {
                         const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
                         this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
                         if (!this.gameStarted) { // in the case the game hasnt started...
-                            const connectedPlayers = Object.keys(this.connectedPlayers).length
-                            if (connectedPlayers === this.MAX_PLAYERS) { // if there is 3 players in the lobby already...
-                                this.gameStarted = true // ...starts the game...
-                                kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
-                                    event: EngineEvents.GAME_STARTED,
-                                    messageToAll: true
-                                })
-                                console.log("THE GAME HAS STARTED!")
-                            } 
+                            this.gameStarted = true // ...starts the game...
+                            kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
+                                event: EngineEvents.GAME_STARTED,
+                                messageToAll: true
+                            })
+                            console.log("THE GAME HAS STARTED!")
                         }
                         else {
                             if (!this.filledMap) this.fillMap()
@@ -397,7 +394,7 @@ export class EngineServer {
             console.log(`Connected to Weather`) 
 
             socket.write(`${EngineEvents.GET_CITY_INFO}`)
-            console.log('doind a city request')
+            console.log('Doing a city info request')
 
             socket.on("data", (data) => { // here is entered when the engine receives information from weather server
                 const [_, name, temperature] = data.toString().split(':')
@@ -408,6 +405,7 @@ export class EngineServer {
 
                 if(requestId < 4) {
                     socket.write(`${EngineEvents.GET_CITY_INFO}`)
+                    console.log('Doing a city info request')
                 }
                 else {
                     this.fillCitiesMap()
@@ -450,21 +448,21 @@ function main() {
     const KAFKA_HOST = config.KAFKA_HOST || "localhost"
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose
 
-    const WEATHER_HOST = config.WEATHER_HOST || "localhost"
-    const WEATHER_PORT = Number(config.WEATHER_PORT) || 5366
+    const WEATHER_SERVER_HOST = config.WEATHER_SERVER_HOST || "localhost"
+    const WEATHER_SERVER_PORT = Number(config.WEATHER_SERVER_PORT) || 5366
 
     const MAX_PLAYERS = Number(config.MAX_PLAYERS) || 5
 
-    const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_HOST, WEATHER_PORT, MAX_PLAYERS)
-    //engine.startAuthentication()
+    const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_SERVER_HOST, WEATHER_SERVER_PORT, MAX_PLAYERS)
+    engine.startAuthentication()
     
     setTimeout(() => {
-        //engine.io.close()
+        engine.io.close()
         engine.getCitiesInfo()
         setTimeout(async () => {
-            //await engine.newGame()
-        }, 20000)
-    }, 0)
+            await engine.newGame()
+        }, 10000)
+    }, 40000)
 }
 
 main()

@@ -113,7 +113,7 @@ export class Registry {
 }
 
 function main() {
-    const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6579
+    const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6580
     new Registry(REGISTRY_SERVER_PORT).Start()
 }
 

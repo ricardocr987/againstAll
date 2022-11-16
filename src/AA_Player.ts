@@ -47,9 +47,7 @@ export abstract class CommonPlayer {
     }
 
     public printBoard(map: string[][]) {
-        for (let i = 0; i < map.length; i++) { 
-            console.log(map[i].join(''))
-        }
+        console.table(map)
     }
 
     public processMessage(message: EngineStream, kafka: KafkaUtil){
@@ -350,6 +348,7 @@ export class Player extends CommonPlayer {
                         case '1':
                             this.askUserInfo()
                             socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                            this.showMenu() // is needed because if not will enter in a infite loop, is needed to change this.answer variable
                             break
                         default: // if he wants to start a game, he will be disconnected from the registry and connected to the engine
                             this.endSocket(socket)
@@ -413,9 +412,10 @@ export class Player extends CommonPlayer {
                     break
                 case '2': // if it has arrived here it is because the player wants to play
                     await this.joinGame()
+                    break
                 case '3':  // if it has arrived here it is because the player wants to close the connection
                 // Client sends END, Server confirms completion, Client kills process, here we kill the client process
-                    console.log("Disconnected from Engine") 
+                    console.log("Disconnected from Engine (authentication)") 
                     process.exit(0) // we kill the client process
                 default: // if it has arrived here it is because an error has occurred from the server, we restart the connection
                     this.clearInfo()
