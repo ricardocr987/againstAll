@@ -208,7 +208,7 @@ export class EngineServer {
                     })
                 }
                 else {
-                    await this.updateBoard(message.playerInfo, kafka)
+                    if (this.connectedPlayers[message.playerInfo.alias]) await this.updateBoard(message.playerInfo, kafka)
                 }
                 break
         }
@@ -258,14 +258,10 @@ export class EngineServer {
                     if (this.connectedPlayers[newPositionContent]) { // if it is a player
                         await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
                     }
-                    else { // if it is a NPC
-
-                    }
             }
         }
         else { // if it was free, it isnt needed to manage the situation
             this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
-            this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
 
             await kafka.sendRecord({
                 id: uuid(),
@@ -284,7 +280,6 @@ export class EngineServer {
         if (actualPlayerLevel > attackedPlayerLevel) {
             // WINNER
             this.modifyBoard(actualPlayer.alias, newPosition) // position updated in the game map/board
-            this.modifyBoard(' ', previousPosition)
 
             await kafka.sendRecord({
                 id: uuid(),
@@ -308,12 +303,12 @@ export class EngineServer {
                 // WINNER:
 
                 // LOSER
-                delete this.connectedPlayers[attackedPlayer.alias]
+                delete this.connectedPlayers[actualPlayer.alias]
 
                 await kafka.sendRecord({
                     id: uuid(),
                     event: EngineEvents.DEATH,
-                    playerAlias: attackedPlayer.alias
+                    playerAlias: actualPlayer.alias
                 })
             }
             else { // tie, ie: same level both

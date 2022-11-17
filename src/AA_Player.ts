@@ -362,7 +362,7 @@ export class Player extends CommonPlayer {
                     if (Number(payload.message.timestamp) > this.timestamp) {
                         if (payload.message.value){ // true if the value is different from undefined
                             const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                            console.log(engineMessage)
+                            //console.log(engineMessage)
                             if (!this.messagesRead.includes(engineMessage.id)) { // i want to make sure all the messages are read only one time
                                 if (this.startedGame) {
                                     // only matters if engine write the alias of the player or if it is for all players
