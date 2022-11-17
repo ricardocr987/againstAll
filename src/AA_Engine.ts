@@ -385,10 +385,6 @@ export class EngineServer {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
-    public delay(ms: number) {
-        return new Promise( resolve => setTimeout(resolve, ms) );
-    }
-
     public getCitiesInfo() {
         console.log(`Connecting to ${this.WEATHER_HOST}:${this.WEATHER_PORT}`) 
 
