@@ -5,6 +5,7 @@ export enum PlayerEvents {
     EDIT_PROFILE = "EDIT_PROFILE",
     END = "END",
     // Kafka event
+    INITIAL_MESSAGE = "INITIAL_MESSAGE",
     NEW_POSITION = "NEW_POSITION",
 }
 

@@ -16,7 +16,6 @@ export class EngineServer {
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // map to store the registry related player's information where the key is the alias and the value is the player instance, gets data from DB
     public playerSockets: Record<string, Socket> = {} // map to store the socket information being the key the player alias and the value the socket instance, only works to close the server when there are no players
     public connectedPlayers: Record<string, PlayerInfo> = {} // map to store the player information being the key the player alias and the value the playerInfo
-    public connectedNPCs: Record<string, PlayerInfo> = {} // same as connectedPlayers but with NPCs
     public cityNames: string[] = [] // storing the 4 city names
     public cityInfo: Record<string, number> = {} // key: name of the city, value: weather info
 
@@ -159,7 +158,6 @@ export class EngineServer {
                             const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
                             console.log(playerMessage)
                             if (!this.messagesRead.includes(playerMessage.id)) { // i want to make sure all the messages are read only one time
-                                this.initilizePlayerInfo(playerMessage.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
                                 await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
                                 this.messagesRead.push(playerMessage.id)
                             }
@@ -180,18 +178,9 @@ export class EngineServer {
     }
 
     public initilizePlayerInfo(playerInfo: PlayerInfo) {
-        if (playerInfo.alias.includes('NPC')) {
-            if (!this.connectedNPCs[playerInfo.alias]) {
-                this.connectedNPCs[playerInfo.alias] = playerInfo
-                this.modifyBoard(playerInfo.alias, playerInfo.position)
-            }
-        }
-        else {
-            if (!this.connectedPlayers[playerInfo.alias]) {
-                this.connectedPlayers[playerInfo.alias] = playerInfo
-                this.modifyBoard(playerInfo.alias, playerInfo.position)
-            }
-        }
+        console.log(playerInfo)
+        this.connectedPlayers[playerInfo.alias] = playerInfo
+        this.modifyBoard(playerInfo.alias, playerInfo.position)
     }
 
     /* 
@@ -205,6 +194,10 @@ export class EngineServer {
     */
     public async processMessage(message: PlayerStream, kafka: KafkaUtil){
         switch (message.event){
+            case PlayerEvents.INITIAL_MESSAGE: 
+                this.initilizePlayerInfo(message.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
+                break
+
             case PlayerEvents.NEW_POSITION:
                 if (this.gameFinished) {
                     await kafka.sendRecord({
@@ -217,7 +210,9 @@ export class EngineServer {
                 else {
                     await this.updateBoard(message.playerInfo, kafka)
                 }
+                break
         }
+        this.printBoard()
     }
 
     // it overrides the content of a position by introducing the new content 
@@ -279,8 +274,6 @@ export class EngineServer {
                 map: this.map
             })
         }
-
-        this.printBoard()
     }
 
     // manages the process for deciding who wins the match, also handles the sending of the correspondings messages

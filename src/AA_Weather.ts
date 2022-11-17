@@ -88,6 +88,7 @@ export class Weather{
                 const [cityName, cityWeather] = this.getRandomWeather()
                 console.log('sending: ', cityName, cityWeather)
                 socket.write(`${WeatherEvents.WEATHER}:${cityName}:${cityWeather}`)
+                if (this.citiesSent.length === 4) this.citiesSent = []
             })
         })
         this.io.listen(this.SERVER_PORT)

@@ -25,7 +25,7 @@ export class NPC extends CommonPlayer {
                     if (payload.message.value){ // true if the value is different from undefined
                         const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
                         // only matters if engine write the alias of the player or if it is for all players
-                        if (this.isEngineStreamReceiver(engineMessage)) this.processMessage(engineMessage, /*kafka*/) // process the message from kafka cluster that was sent by the engine
+                        if (this.isEngineStreamReceiver(engineMessage)) await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                         await this.sendNewMovement(kafka) // asks and send the event to the kafka cluster
                     }
                     else {

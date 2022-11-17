@@ -45,8 +45,9 @@ export abstract class CommonPlayer {
         console.table(map)
     }
 
-    public processMessage(message: EngineStream, /*kafka: KafkaUtil*/){
+    public async processMessage(message: EngineStream){
         switch (message.event){
+
             case EngineEvents.GAME_NOT_PLAYABLE: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
                 console.log(message.playerAlias, ': ', message.error)
                 // if (this.finishedGame) kafka.pauseConsumer()
@@ -364,18 +365,23 @@ export class Player extends CommonPlayer {
                                 if (this.startedGame) {
                                     // only matters if engine write the alias of the player or if it is for all players
                                     if (this.isEngineStreamReceiver(engineMessage)){
-                                        this.processMessage(engineMessage, /*kafka*/) // process the message from kafka cluster that was sent by the engine
+                                        await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                                         this.messagesRead.push(engineMessage.id)
                                     }
                                 }
-        
-                                // we will process the kafka messages after receiving this event from the engine
-                                if (engineMessage.event == EngineEvents.GAME_STARTED) {
-                                    this.startedGame = true
-                                    console.log('THE GAME HAS JUST STARTED')
-                                    if (engineMessage.map) {
-                                        engineMessage.map[this.playerInfo.position.x][this.playerInfo.position.y] = this.playerInfo.alias
-                                        this.printBoard(engineMessage.map)
+                                else {
+                                    if (engineMessage.event === EngineEvents.GAME_STARTED) {
+                                        // we will process the kafka messages after receiving this event from the engine
+                                        this.startedGame = true
+                                        console.log('THE GAME HAS JUST STARTED')
+                                        if (engineMessage.map) {
+                                            await kafka.sendRecord({
+                                                id: uuid(),
+                                                event: PlayerEvents.INITIAL_MESSAGE,
+                                                playerInfo: this.playerInfo
+                                            })
+                                            this.printBoard(engineMessage.map)
+                                        }
                                     }
                                 }
                                 await this.askMovement(kafka) // asks and send the event to the kafka cluster
