@@ -8,8 +8,10 @@
 
 1. docker-compose up
 2. ./create-topics.sh 
-3. npm run start
-4. npm run start:registry
-5. npm run start:weather
-6. npm run start:engine
-7. npm run start:player
+3. Incluir IP del ordenador en el archivo config en el broker, es donde esta lanzado kafka
+4. Modificar env.default con los puertos y hosts
+5. npm run start
+6. npm run start:registry
+7. npm run start:weather
+8. npm run start:engine
+9. npm run start:player
