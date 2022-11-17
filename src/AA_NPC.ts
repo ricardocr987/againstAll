@@ -13,9 +13,9 @@ export class NPC extends CommonPlayer {
     }
 
     public async joinGame(){
-        this.alias += this.randomIntFromInterval(0, 99).toString() // added an random id to the alias 'NPC'
+        this.playerInfo.alias += this.randomIntFromInterval(0, 99).toString() // added an random id to the alias 'NPC'
 
-        const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+        const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
         console.log('Wating for the game to start...')
 
         try {
@@ -51,7 +51,7 @@ export class NPC extends CommonPlayer {
         const event: PlayerStream = {
             id: uuid(),
             event: PlayerEvents.NEW_POSITION,
-            playerInfo: this.getPlayerInfo()
+            playerInfo: this.playerInfo
         }
 
         kafka.sendRecord(event)

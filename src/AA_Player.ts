@@ -1,4 +1,4 @@
-import { Coordinate, PlayerInfo, PlayerEvents, PlayerStream, EngineStream, EngineEvents } from './types.js'
+import { PlayerInfo, PlayerEvents, PlayerStream, EngineStream, EngineEvents } from './types.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
 import { KafkaUtil } from './kafka.js'
@@ -8,12 +8,9 @@ import { v4 as uuid } from 'uuid'
 // aggregates same functionalities for players and NPCs
 export abstract class CommonPlayer {
     // PlayerInfo
-    public alias: string = 'NPC' // initilized like this, if it is a Player will be overwritten
+    public playerInfo: PlayerInfo
     public password: string = ''
-    public position: Coordinate
-    public baseLevel: number
-    public coldEffect: number
-    public hotEffect: number
+
 
     public timestamp: number = Date.now()
     public messagesRead: string[] = []
@@ -23,13 +20,16 @@ export abstract class CommonPlayer {
     public finishedGame = false
 
     constructor() {
-        this.position = {
-            x: this.randomIntFromInterval(0, 19), // 0-19
-            y: this.randomIntFromInterval(0, 19) // 0-19
+        this.playerInfo = {
+            alias: 'NPC', // initilized like this, if it is a Player will be overwritten
+            position: {
+                x: this.randomIntFromInterval(0, 19), // 0-19
+                y: this.randomIntFromInterval(0, 19) // 0-19
+            },
+            baseLevel: 1,
+            coldEffect: this.randomIntFromInterval(-10, 10),
+            hotEffect: this.randomIntFromInterval(-10, 10),
         }
-        this.baseLevel = 1
-        this.coldEffect = this.randomIntFromInterval(-10, 10)
-        this.hotEffect = this.randomIntFromInterval(-10, 10)
     }
 
     public randomIntFromInterval(min: number, max: number) { // min and max included 
@@ -38,7 +38,7 @@ export abstract class CommonPlayer {
 
     // true if the message includes the alias explicitly or if it a message for all
     public isEngineStreamReceiver (engineMessage: EngineStream): boolean { 
-        return engineMessage.playerAlias === this.alias || engineMessage.messageToAll === true
+        return engineMessage.playerAlias === this.playerInfo.alias || engineMessage.messageToAll === true
     }
 
     public printBoard(map: string[][]) {
@@ -83,7 +83,7 @@ export abstract class CommonPlayer {
                             break
 
                         case EngineEvents.TIE:
-                            if (message.position) this.position = message.position
+                            if (message.position) this.playerInfo.position = message.position
                             if (message.map) this.printBoard(message.map)
 
                             break
@@ -95,22 +95,12 @@ export abstract class CommonPlayer {
                 break
 
             case EngineEvents.MOVEMENT_ERROR:
-                if (message.position) this.position = message.position
+                if (message.position) this.playerInfo.position = message.position
                 if (message.map) this.printBoard(message.map)
                 console.log(message.playerAlias, ': ', message.error)
 
                 break
         }    
-    }
-
-    public getPlayerInfo(): PlayerInfo {
-        return {
-            alias: this.alias,
-            position: this.position,
-            baseLevel: this.baseLevel,
-            coldEffect: this.coldEffect,
-            hotEffect: this.hotEffect,
-        }
     }
 
     public changePosition(answer: string) {
@@ -144,59 +134,59 @@ export abstract class CommonPlayer {
 
     // external coordinates are connected to each other
     public moveN() {
-        this.position.x--
-        if (this.position.x === -1) this.position.x = 19
+        this.playerInfo.position.x--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
     }
 
     public moveS() {
-        this.position.x++
-        if (this.position.x === 20) this.position.x = 0
+        this.playerInfo.position.x++
+        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
     }
 
     public moveW() {
-        this.position.y--
-        if (this.position.x === -1) this.position.y = 19
+        this.playerInfo.position.y--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
     }
 
     public moveE() {
-        this.position.y++
-        if (this.position.y === 20) this.position.y = 0
+        this.playerInfo.position.y++
+        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
     }
 
     public moveNW() {
-        this.position.x--
-        if (this.position.x === -1) this.position.x = 19
+        this.playerInfo.position.x--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
         
-        this.position.y--
-        if (this.position.x === -1) this.position.y = 19
+        this.playerInfo.position.y--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
     }
 
     public moveNE() {
-        this.position.x--
-        if (this.position.x === -1) this.position.x = 19
+        this.playerInfo.position.x--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
 
-        this.position.y++
-        if (this.position.y === 20) this.position.y = 0
+        this.playerInfo.position.y++
+        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
     }
 
     public moveSW() {
-        this.position.x++
-        if (this.position.x === 20) this.position.x = 0
+        this.playerInfo.position.x++
+        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
 
-        this.position.y--
-        if (this.position.x === -1) this.position.y = 19
+        this.playerInfo.position.y--
+        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
     }
 
     public moveSE() {
-        this.position.x++
-        if (this.position.x === 20) this.position.x = 0
+        this.playerInfo.position.x++
+        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
 
-        this.position.y++
-        if (this.position.y === 20) this.position.y = 0
+        this.playerInfo.position.y++
+        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
     }
 
     public modifyLevel(amount: number) {
-        this.baseLevel += amount
+        this.playerInfo.baseLevel += amount
     }
 }
 
@@ -230,13 +220,13 @@ export class Player extends CommonPlayer {
 
     // alias & password ask
     public askUserInfo(){ 
-        this.alias = this.prompt("Introduce your username: ")
+        this.playerInfo.alias = this.prompt("Introduce your username: ")
         this.password = this.prompt("Introduce your password: ")
     }
 
     // clean of some properties filled before
     public clearInfo() {
-        this.alias = ''
+        this.playerInfo.alias = ''
         this.password = ''
         this.answer = ''
     }
@@ -264,10 +254,10 @@ export class Player extends CommonPlayer {
             // the authentication (login) has to be done by engine, so the registry is only used to create/edit an account
             // we send to the server the event, alias and password in both cases
             if(fromEngine){
-                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.playerInfo.alias}:${this.password}`)
             }
             else {
-                socket.write(`${PlayerEvents.SIGN_UP}:${this.alias}:${this.password}`)
+                socket.write(`${PlayerEvents.SIGN_UP}:${this.playerInfo.alias}:${this.password}`)
             }
 
             socket.on("data", (data) => { // here is entered when the player receives information from registry
@@ -276,7 +266,7 @@ export class Player extends CommonPlayer {
                     switch(this.answer){
                         case '1':
                             this.askUserInfo()
-                            socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.alias}:${this.password}`)
+                            socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.playerInfo.alias}:${this.password}`)
                             this.showMenu() // is needed because if not will enter in a infite loop, is needed to change this.answer variable
                             break
                         default: // if he wants to start a game, he will be disconnected from the registry and connected to the engine
@@ -318,7 +308,7 @@ export class Player extends CommonPlayer {
 
         socket.on("connect", () => {
             console.log(`Connected to Engine`) 
-            socket.write(`${PlayerEvents.SIGN_IN}:${this.alias}:${this.password}`)
+            socket.write(`${PlayerEvents.SIGN_IN}:${this.playerInfo.alias}:${this.password}`)
         
             socket.on("data", (data) => {
                 if(data.toString().includes("OK")){
@@ -355,7 +345,7 @@ export class Player extends CommonPlayer {
 
     // starts the kafka usage
     public async joinGame() {
-        const kafka = new KafkaUtil(this.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+        const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
 
         await kafka.producer.connect()
         await kafka.consumer.connect()
@@ -418,24 +408,16 @@ export class Player extends CommonPlayer {
             if (!this.movementSet.has(this.answer)) console.log('Please introduce N, S, W, E, NW, NE, SW or SE')
         }
 
-        console.log('before: ', this.position)
-
         this.changePosition(this.answer)
         this.answer = '' // because the upper while
-
-        console.log('after: ', this.position)
 
         const event: PlayerStream = {
             id: uuid(),
             event: PlayerEvents.NEW_POSITION,
-            playerInfo: {
-                alias: this.alias,
-                position: this.position,
-                baseLevel: this.baseLevel,
-                coldEffect: this.coldEffect,
-                hotEffect: this.hotEffect,
-            }
+            playerInfo: this.playerInfo
         }
+
+        console.log(this.playerInfo)
 
         await kafka.sendRecord(event)
     }

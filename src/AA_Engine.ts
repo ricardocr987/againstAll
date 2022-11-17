@@ -158,7 +158,7 @@ export class EngineServer {
                             const playerMessage: PlayerStream = JSON.parse(payload.message.value.toString()) // I convert the message value into a JSON (it would be like a kind of deserialization), Buffer -> string -> JSON
                             console.log(playerMessage)
                             if (!this.messagesRead.includes(playerMessage.id)) { // i want to make sure all the messages are read only one time
-                                if (!this.connectedNPCs[playerMessage.playerInfo.alias] || !this.connectedNPCs[playerMessage.playerInfo.alias]) this.initilizePlayerInfo(playerMessage.playerInfo)                  
+                                this.initilizePlayerInfo(playerMessage.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
                                 await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
                                 this.messagesRead.push(playerMessage.id)
                             }
@@ -180,12 +180,17 @@ export class EngineServer {
 
     public initilizePlayerInfo(playerInfo: PlayerInfo) {
         if (playerInfo.alias.includes('NPC')) {
-            this.connectedNPCs[playerInfo.alias] = playerInfo
+            if (!this.connectedNPCs[playerInfo.alias]) {
+                this.connectedNPCs[playerInfo.alias] = playerInfo
+                this.modifyBoard(playerInfo.alias, playerInfo.position)
+            }
         }
         else {
-            this.connectedPlayers[playerInfo.alias] = playerInfo
+            if (!this.connectedPlayers[playerInfo.alias]) {
+                this.connectedPlayers[playerInfo.alias] = playerInfo
+                this.modifyBoard(playerInfo.alias, playerInfo.position)
+            }
         }
-        this.modifyBoard(playerInfo.alias, playerInfo.position)
     }
 
     /* 
@@ -218,6 +223,7 @@ export class EngineServer {
     public modifyBoard(toIntroduce: string, position: Coordinate) { 
         this.map[position.x][position.y] = toIntroduce // modifies the content of the map
         if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
+        console.log(this.connectedPlayers[toIntroduce])
         // position updated in the playersInfo map
     }
 
@@ -264,7 +270,8 @@ export class EngineServer {
         }
         else { // if it was free, it isnt needed to manage the situation
             this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
-
+            this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
+            console.log(newPosition, previousPosition)
             await kafka.sendRecord({
                 id: uuid(),
                 event: EngineEvents.MOVEMENT_OK,
@@ -472,7 +479,7 @@ function main() {
         engine.getCitiesInfo()
         setTimeout(async () => {
             await engine.newGame()
-        }, 10000)
+        }, 5000)
     }, 10000)
 }
 
