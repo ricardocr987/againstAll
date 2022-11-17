@@ -146,7 +146,8 @@ export class EngineServer {
         await kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
             id: uuid(),
             event: EngineEvents.GAME_STARTED,
-            messageToAll: true
+            messageToAll: true,
+            map: this.map
         })
         console.log("THE GAME HAS STARTED!")
 
@@ -223,7 +224,6 @@ export class EngineServer {
     public modifyBoard(toIntroduce: string, position: Coordinate) { 
         this.map[position.x][position.y] = toIntroduce // modifies the content of the map
         if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
-        console.log(this.connectedPlayers[toIntroduce])
         // position updated in the playersInfo map
     }
 
@@ -239,9 +239,9 @@ export class EngineServer {
                 case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
                     await kafka.sendRecord({
                         id: uuid(),
-                        event: EngineEvents.MOVEMENT_OK,
-                        event2: EngineEvents.DEATH,
+                        event: EngineEvents.DEATH,
                         playerAlias: playerInfo.alias,
+                        map: this.map
                     })
                     delete this.connectedPlayers[playerInfo.alias]
 
@@ -271,13 +271,15 @@ export class EngineServer {
         else { // if it was free, it isnt needed to manage the situation
             this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
             this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
-            console.log(newPosition, previousPosition)
+
             await kafka.sendRecord({
                 id: uuid(),
                 event: EngineEvents.MOVEMENT_OK,
-                playerAlias: playerInfo.alias
+                playerAlias: playerInfo.alias,
+                map: this.map
             })
         }
+
         this.printBoard()
     }
 
@@ -416,7 +418,7 @@ export class EngineServer {
 
             socket.on("data", (data) => { // here is entered when the engine receives information from weather server
                 const [_, name, temperature] = data.toString().split(':')
-                console.log(`received: ${name} ${temperature}`)
+                console.log(`Received: ${name} ${temperature}`)
                 this.cityInfo[name] = Number(temperature)
                 this.cityNames.push(name)
                 requestId++
@@ -480,7 +482,7 @@ function main() {
         setTimeout(async () => {
             await engine.newGame()
         }, 5000)
-    }, 10000)
+    }, 15000)
 }
 
 main()

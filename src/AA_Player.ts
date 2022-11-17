@@ -65,7 +65,8 @@ export abstract class CommonPlayer {
                 //kafka.pauseConsumer()
                 this.finishedGame = true
 
-                console.log('You lost, someone killed you')
+                console.log('You lost, someone or a mine killed you')
+                process.exit(0)
 
                 break
 
@@ -73,34 +74,31 @@ export abstract class CommonPlayer {
                 if (message.event2) {
                     switch (message.event2) { // se podria eliminar este switch y direcrtamente mostrar el mapa
                         case EngineEvents.KILL:
-                            if (message.map) this.printBoard(message.map)
                             // podria mostrar algun mensaje o informacion sobre el playerInfo
                             break
             
                         case EngineEvents.LEVEL_UP:
-                            if (message.map) this.printBoard(message.map)
-            
+                            this.playerInfo.baseLevel++
+
                             break
 
                         case EngineEvents.TIE:
                             if (message.position) this.playerInfo.position = message.position
-                            if (message.map) this.printBoard(message.map)
 
                             break
             
                     }
                 }
-                if (message.map) this.printBoard(message.map)
 
                 break
 
             case EngineEvents.MOVEMENT_ERROR:
                 if (message.position) this.playerInfo.position = message.position
-                if (message.map) this.printBoard(message.map)
                 console.log(message.playerAlias, ': ', message.error)
 
                 break
-        }    
+        }
+        if (message.map) this.printBoard(message.map)
     }
 
     public changePosition(answer: string) {
@@ -135,54 +133,54 @@ export abstract class CommonPlayer {
     // external coordinates are connected to each other
     public moveN() {
         this.playerInfo.position.x--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
+        if (this.playerInfo.position.x < 0) this.playerInfo.position.x = 19
     }
 
     public moveS() {
         this.playerInfo.position.x++
-        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
+        if (this.playerInfo.position.x > 19) this.playerInfo.position.x = 0
     }
 
     public moveW() {
         this.playerInfo.position.y--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
+        if (this.playerInfo.position.y < 0) this.playerInfo.position.y = 19
     }
 
     public moveE() {
         this.playerInfo.position.y++
-        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
+        if (this.playerInfo.position.y > 19) this.playerInfo.position.y = 0
     }
 
     public moveNW() {
         this.playerInfo.position.x--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
+        if (this.playerInfo.position.x < 0) this.playerInfo.position.x = 19
         
         this.playerInfo.position.y--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
+        if (this.playerInfo.position.y < 0) this.playerInfo.position.y = 19
     }
 
     public moveNE() {
         this.playerInfo.position.x--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.x = 19
+        if (this.playerInfo.position.x < 0) this.playerInfo.position.x = 19
 
         this.playerInfo.position.y++
-        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
+        if (this.playerInfo.position.y > 19) this.playerInfo.position.y = 0
     }
 
     public moveSW() {
         this.playerInfo.position.x++
-        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
+        if (this.playerInfo.position.x > 19) this.playerInfo.position.x = 0
 
         this.playerInfo.position.y--
-        if (this.playerInfo.position.x === -1) this.playerInfo.position.y = 19
+        if (this.playerInfo.position.y < 0) this.playerInfo.position.y = 19
     }
 
     public moveSE() {
         this.playerInfo.position.x++
-        if (this.playerInfo.position.x === 20) this.playerInfo.position.x = 0
+        if (this.playerInfo.position.x > 19) this.playerInfo.position.x = 0
 
         this.playerInfo.position.y++
-        if (this.playerInfo.position.y === 20) this.playerInfo.position.y = 0
+        if (this.playerInfo.position.y > 19) this.playerInfo.position.y = 0
     }
 
     public modifyLevel(amount: number) {
@@ -375,6 +373,10 @@ export class Player extends CommonPlayer {
                                 if (engineMessage.event == EngineEvents.GAME_STARTED) {
                                     this.startedGame = true
                                     console.log('THE GAME HAS JUST STARTED')
+                                    if (engineMessage.map) {
+                                        engineMessage.map[this.playerInfo.position.x][this.playerInfo.position.y] = this.playerInfo.alias
+                                        this.printBoard(engineMessage.map)
+                                    }
                                 }
                                 await this.askMovement(kafka) // asks and send the event to the kafka cluster
                             }

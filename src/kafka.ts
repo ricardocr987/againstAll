@@ -16,7 +16,7 @@ export class KafkaUtil {
     constructor(
         clientId: string,
         clientType: string,
-        topic: string 
+        topic: string,
     ){
         this.producerClient = new Kafka({
             ...kafkaConfig, // standard config in config.ts
@@ -28,7 +28,8 @@ export class KafkaUtil {
             ...kafkaConfig,
             clientId: `${clientType}:${clientId}:consumer`,
         })
-        this.consumer = this.consumerClient.consumer({ groupId: `${clientType}` })
+        
+        this.consumer = this.consumerClient.consumer({ groupId: `${clientType}:${clientId}` })
 
         this.topic = topic
     }
