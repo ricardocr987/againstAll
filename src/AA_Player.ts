@@ -9,8 +9,6 @@ import { v4 as uuid } from 'uuid'
 export abstract class CommonPlayer {
     // PlayerInfo
     public playerInfo: PlayerInfo
-    public password: string = ''
-
 
     public timestamp: number = Date.now()
     public messagesRead: string[] = []
@@ -30,6 +28,8 @@ export abstract class CommonPlayer {
             coldEffect: this.randomIntFromInterval(-10, 10),
             hotEffect: this.randomIntFromInterval(-10, 10),
         }
+
+        console.log('Player Info: ', this.playerInfo)
     }
 
     public randomIntFromInterval(min: number, max: number) { // min and max included 
@@ -196,6 +196,8 @@ export class Player extends CommonPlayer {
     public intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
     public menuAnswerSet: Set<string> = new Set<string>(['1', '2', '3'])
     public movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
+
+    public password: string = ''
 
     // to create the player instance is needed the IPs and ports of the registry, engine and kafka
     constructor( 
