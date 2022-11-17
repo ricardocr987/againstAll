@@ -30,7 +30,7 @@ export class Registry {
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
-        if (!existsSync(this.paths.dataFile('registry'))) return {}
+        if (!existsSync(this.paths.dataFile('registry')) || !existsSync(this.paths.dataDir)) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
         const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero

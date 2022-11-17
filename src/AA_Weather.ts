@@ -1,5 +1,5 @@
 import { Paths } from './paths.js'
-import { existsSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
 import { WeatherEvents } from './types.js'
@@ -36,7 +36,7 @@ export class Weather{
     }
 
     public getWeather() {
-        if(!existsSync(this.paths.dataFile('cities')) || !existsSync(this.paths.dataFile('weather'))) {
+        if(!existsSync(this.paths.dataFile('cities')) || !existsSync(this.paths.dataFile('weather'))|| !existsSync(this.paths.dataDir) ) {
             this.addCitiesNames()
             this.addWeatherInfo()
         }
@@ -52,7 +52,7 @@ export class Weather{
         for (let i = 0; i < cities.length; i++) {
             this.cities[i] = cities[i]
         }
-
+        mkdirSync(this.paths.dataDir)
         writeFileSync(this.paths.dataFile("cities"), format(JSON.stringify(this.cities).trim(), options))   
     }
 

@@ -69,7 +69,7 @@ export class EngineServer {
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // when an object is created read the json to load data from old executions
-        if(!existsSync(this.paths.dataDir)) return {}
+        if(!existsSync(this.paths.dataDir) || !existsSync(this.paths.dataFile('registry'))) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
         const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // read the file
