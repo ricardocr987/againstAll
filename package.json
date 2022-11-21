@@ -28,14 +28,18 @@
     "@types/prettier": "^2.7.1",
     "@types/prompt-sync": "^4.2.0",
     "@types/uuid": "^8.3.4",
+    "nodemon": "^2.0.20",
     "prettier": "^2.7.1",
     "ts-node": "^10.9.1",
     "typescript": "^4.8.4"
   },
   "dependencies": {
     "dotenv-defaults": "^5.0.2",
+    "express": "^4.18.2",
     "kafkajs": "^2.2.2",
+    "morgan": "^1.10.0",
     "prompt-sync": "^4.2.0",
+    "require": "^2.4.20",
     "superstruct": "^0.16.6",
     "uuid": "^9.0.0"
   }
