@@ -1,3 +1,16 @@
+*TO-DO:*
+
+- Parametrizar KAFKA host y MAX PLAYERS
+- Varios engines
+- Capturar fallos de caídas de servidores y que muestren mensajes en vez de que se lancen errores
+- Hacer los cambios que se hicieron el día de la demo (printBoard, winner)
+
+(P2):
+- Conexion Registry-Player por API_REST: https://bravedeveloper.com/2021/03/22/crear-un-api-rest-con-nodejs-y-express-nunca-fue-tan-provechoso-y-sencillo/
+- Consumo de API_rest de un servidor de clima
+- API_Engine
+- Frontend
+
 *Software necesario:*
 
 - Node.js (16.17.1)
