@@ -385,6 +385,11 @@ export class EngineServer {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
+    public getWeatherInfo(){
+
+    }
+
+////////////////////////////////////////////////////////////////////////////////////
     public getCitiesInfo() {
         console.log(`Connecting to ${this.WEATHER_HOST}:${this.WEATHER_PORT}`) 
 
@@ -467,6 +472,20 @@ function main() {
             await engine.newGame()
         }, 5000)
     }, 15000)
+}
+
+function getWeatherInfo(): Promise{
+    return fetch('https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API key}',{
+        method: 'GET',
+        headers: {
+            'x-rapidapi-host': 'currency-conversion-and-exchange-rates.p.rapidapi.com',
+			'x-rapidapi-key': 'your_api_key',
+        },
+    })
+    .then((response) =&gt; response.json()) // Parse the response in JSON
+    .then((response) =&gt; {
+        return response as ConversionData; // Cast the response type to our interface
+    });
 }
 
 main()

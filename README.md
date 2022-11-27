@@ -11,6 +11,8 @@
 - API_Engine
 - Frontend
 
+-API KEY del Weather = 274d9ed11cbef3a98393a23a34f79bb7
+
 *Software necesario:*
 
 - Node.js (16.17.1)
