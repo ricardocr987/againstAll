@@ -5,6 +5,7 @@ import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStr
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
 import { v4 as uuid } from 'uuid'
+import fetch from 'node-fetch'
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // is simply an object to make it easy to get the path to e.g. the database
@@ -28,6 +29,12 @@ export class EngineServer {
 
     public timestamp: number = Date.now()
     public messagesRead: string[] = []
+
+    //Weather
+    public city : string[] = []
+    public weather: any
+    public cities : number = 0
+    public citiesSent: number [] = []
 
     constructor(        
         public SERVER_PORT: number,
@@ -385,11 +392,34 @@ export class EngineServer {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
-    public getWeatherInfo(){
-
+    public getCity(){
+        this.city = ['London', 'Zocca', 'Madrid', 'New York', 'Paris', 'Tokyo', 'Valencia', 'Manchester', 'Milan', 'Liverpool', 'Napoles', 'Hong Kong', 'Medellin', 'Murcia', 'Granada', 'Venecia', 'Prague', 'Krakow', 'Roma', 'Moscow']
+        const x= this.randomIntFromInterval(0,19)
+        if(this.citiesSent.includes(x)){
+            this.getCity()
+        }
+        else{
+            this.getWeatherInfo(this.city[x])
+            this.citiesSent.push(x)
+        }
     }
 
-////////////////////////////////////////////////////////////////////////////////////
+    public async getWeatherInfo(x: string){
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${x}&appid=274d9ed11cbef3a98393a23a34f79bb7&units=metric`)
+        this.weather = await res.json()
+        //console.log(this.weather.main.temp, this.weather.name)
+       // this.getCitiesInfo1(this.weather.name, this.weather.main.temp)
+
+        console.log(`Received: ${this.weather.name} ${this.weather.main.temp}`)
+        this.cityInfo[this.weather.name] = Number(this.weather.main.temp)
+        this.cityNames.push(this.weather.name)
+        this.cities++
+
+        if(this.cities<4){
+            this.getCity()
+        }
+    }
+
     public getCitiesInfo() {
         console.log(`Connecting to ${this.WEATHER_HOST}:${this.WEATHER_PORT}`) 
 
@@ -464,6 +494,9 @@ function main() {
 
     const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_SERVER_HOST, WEATHER_SERVER_PORT, MAX_PLAYERS)
     engine.startAuthentication()
+
+        /////
+        engine.getCity()
     
     setTimeout(() => {
         engine.io.close()
@@ -472,20 +505,6 @@ function main() {
             await engine.newGame()
         }, 5000)
     }, 15000)
-}
-
-function getWeatherInfo(): Promise{
-    return fetch('https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API key}',{
-        method: 'GET',
-        headers: {
-            'x-rapidapi-host': 'currency-conversion-and-exchange-rates.p.rapidapi.com',
-			'x-rapidapi-key': 'your_api_key',
-        },
-    })
-    .then((response) =&gt; response.json()) // Parse the response in JSON
-    .then((response) =&gt; {
-        return response as ConversionData; // Cast the response type to our interface
-    });
 }
 
 main()

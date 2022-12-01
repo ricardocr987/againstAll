@@ -12,7 +12,7 @@ app.use(express.urlenconded({extended:false}))
 app.use(express.json())
 
 
-app.get('/', (req: any, res: any) => {
+app.get('/', (/*req: any, */res: any) => {
     res.json(
         {
             "Title": "Hola Mundo"
