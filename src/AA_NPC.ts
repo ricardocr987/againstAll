@@ -54,7 +54,7 @@ export class NPC extends CommonPlayer {
                             }
                         }
                         else {
-                            console.log("Error: Received a undefined message")
+                            console.log('Error: Received a undefined message')
                         }
                     }
                 }
@@ -90,7 +90,7 @@ export class NPC extends CommonPlayer {
 }
 
 async function main() {
-    const BROKER_HOST = "localhost" // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
+    const BROKER_HOST = 'localhost' // aqui se escribira la ip del ordenador donde este lanzado el server (engine & registry), pero si lo haces todo desde el mismo pc en diferentes terminales es localhost
     const BROKER_PORT = 5670
 
     const npc = new NPC(BROKER_HOST, BROKER_PORT)

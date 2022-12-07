@@ -52,10 +52,6 @@ export class EngineServer {
         return map
     }
 
-    public printCityBoard() {
-        console.table(this.temperatureMap)
-    }
-
     // it overrides the content of a position by introducing the new content 
     public modifyCityBoard(toIntroduce: string, position: Coordinate) { 
         this.temperatureMap[position.x][position.y] = toIntroduce // modifies the content of the map 
@@ -65,7 +61,7 @@ export class EngineServer {
         if(!existsSync(paths.dataDir) || !existsSync(paths.dataFile('registry'))) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile("registry"), "utf8")) // read the file
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile('registry'), 'utf8')) // read the file
         for(const player of Object.values(players)){ // loop to save all the players that had been stored in the file to the map
             registeredPlayers[player.alias] = player
         }
@@ -75,8 +71,8 @@ export class EngineServer {
 
     public signInPlayer(player: RegistryPlayerInfo, socket: Socket) {
         this.registeredPlayers = this.getPlayers() // necessary to have it fully updated at this point
-        if(!this.registeredPlayers[player.alias]) throw new Error("This alias does not exist on the database")
-        if(this.registeredPlayers[player.alias].password !== player.password) throw new Error("The password is not correct")
+        if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
+        if(this.registeredPlayers[player.alias].password !== player.password) throw new Error('The password is not correct')
         
         socket.write(RegistryEvents.SIGN_IN_OK)
         this.authenticatedPlayers++
@@ -86,12 +82,13 @@ export class EngineServer {
         this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + client port
             console.log(`New connection from ${remoteSocket}`)
-            socket.setEncoding("utf-8") // sets the kind of encoding format
+            socket.setEncoding('utf-8') // sets the kind of encoding format
 
-            socket.on("data", (message) => { // // when you send a message from the client, (socket.write) -> you receive a Buffer (bytes) that must be converted into a string .toString()
+            socket.on('data', (message) => { // // when you send a message from the client, (socket.write) -> you receive a Buffer (bytes) that must be converted into a string .toString()
                 const [event, alias, password] = message.toString().split(':') // message received from the player
                 
                 if (!this.playerSockets[alias]) this.playerSockets[alias] = socket // if it isnt registered already as a connected socket will register it
+
                 console.log(`Received this message from the player: ${event}:${alias}:${password}`)
 
                 // stores player info
@@ -104,14 +101,19 @@ export class EngineServer {
                 switch(event){
                     case PlayerEvents.SIGN_IN:
                         try{
-                            this.signInPlayer(registryPlayerInfo, socket) 
+                            if (this.MAX_PLAYERS === this.authenticatedPlayers) {
+                                socket.write(`${RegistryEvents.SIGN_IN_ERROR}:NO_SPACE`)
+                            }
+                            else {
+                                this.signInPlayer(registryPlayerInfo, socket) 
+                            }
                         } catch(e){
                             socket.write(`${RegistryEvents.SIGN_IN_ERROR}:${e}`)
                         }
                         break
 
                     case PlayerEvents.END: // if it receives END event, will finish the connection
-                        console.log("SOCKET DISCONNECTED: " + remoteSocket)
+                        console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
                         // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
@@ -119,8 +121,6 @@ export class EngineServer {
                 }          
             }) 
         })
-
-        if (this.MAX_PLAYERS === this.authenticatedPlayers) this.io.close // if it reaches the maximum players closes the server and starts using kafka
 
         this.io.listen(this.SERVER_PORT) // the server listens the port
     }
@@ -141,7 +141,7 @@ export class EngineServer {
             messageToAll: true,
             map: this.map
         })
-        console.log("THE GAME HAS STARTED!")
+        console.log('THE GAME HAS STARTED!')
 
         try {
             await kafka.consumer.run({ 
@@ -415,16 +415,14 @@ export class EngineServer {
                 }
             }
         }
-        this.printCityBoard()
+        printBoard(this.temperatureMap)
     }
 }
 
 function main() {
     const ENGINE_SERVER_PORT = Number(config.ENGINE_SERVER_PORT) || 5886
-
-    const KAFKA_HOST = config.KAFKA_HOST || "localhost"
+    const KAFKA_HOST = config.KAFKA_HOST || 'localhost'
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose
-
     const MAX_PLAYERS = Number(config.MAX_PLAYERS) || 5
 
     const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, MAX_PLAYERS)

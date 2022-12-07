@@ -1,4 +1,4 @@
-import { Kafka, Producer, Message, Consumer } from "kafkajs" 
+import { Kafka, Producer, Message, Consumer } from 'kafkajs' 
 import { EngineStream, PlayerStream, UnionStream } from './types.js'
 import { kafkaConfig } from './config.js'
 
@@ -37,9 +37,9 @@ export class KafkaUtil {
     /*
         An event records the fact that something happened (also called record or message)
         Here's an example event:
-            Event key: "Alice"
-            Event value: "Made a payment of $200 to Bob"
-            Event timestamp: "Jun. 25, 2020 at 2:06 p.m."
+            Event key: 'Alice'
+            Event value: 'Made a payment of $200 to Bob'
+            Event timestamp: 'Jun. 25, 2020 at 2:06 p.m.'
     */
     public async sendRecord(event: UnionStream) {
         const buffer = Buffer.from(JSON.stringify(event)) // JSON -> String -> Buffer, it is like a kind of serialization

@@ -32,7 +32,7 @@ export class Registry {
         if (!existsSync(paths.dataFile('registry')) || !existsSync(paths.dataDir)) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile("registry"), "utf8")) // leo fichero
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile('registry'), 'utf8')) // leo fichero
         for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
             registeredPlayers[player.alias] = player
         }
@@ -41,7 +41,7 @@ export class Registry {
     }
 
     public registerPlayer(player: RegistryPlayerInfo, socket: Socket) { // creo perfil de player
-        if(this.registeredPlayers[player.alias]) throw new Error("There is already a player with the same alias")
+        if(this.registeredPlayers[player.alias]) throw new Error('There is already a player with the same alias')
 
         socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
 
@@ -50,11 +50,11 @@ export class Registry {
         if(!existsSync(paths.dataDir)) // si no existe la carpeta data ...
             mkdirSync(paths.dataDir) // ... la crea
 
-        writeFileSync(paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
     }
 
     public editPlayer(player: RegistryPlayerInfo, socket: Socket) {
-        if(!this.registeredPlayers[player.alias]) throw new Error("This alias does not exist on the database")
+        if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
 
         socket.write(RegistryEvents.EDIT_PROFILE_OK)
 
@@ -62,16 +62,16 @@ export class Registry {
         if(!existsSync(paths.dataDir))
             mkdirSync(paths.dataDir)
 
-        writeFileSync(paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
     }
 
     public Start() {
-        this.io.on("connection", (socket: Socket) => {
+        this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
-            socket.setEncoding("utf-8") // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
+            socket.setEncoding('utf-8') // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
 
-            socket.on("data", (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que hay que convertir en string .toString()
+            socket.on('data', (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que hay que convertir en string .toString()
                 const [event, alias, password] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
 
                 if (!this.playerSockets[alias]) this.playerSockets[alias] = socket
@@ -99,7 +99,7 @@ export class Registry {
                         }
                         break
                     case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
-                        console.log("SOCKET DISCONNECTED: " + remoteSocket)
+                        console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
                         // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
@@ -107,6 +107,7 @@ export class Registry {
                 }           
             }) 
         })
+
         this.io.listen(this.port) // el servidor escucha el puerto 
     }
 }
