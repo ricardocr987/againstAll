@@ -19,9 +19,6 @@ export enum RegistryEvents {
 }
 
 export enum EngineEvents {
-    // EVENTS WITH WEATHER:
-    GET_CITY_INFO = 'GET_CITY_INFO',
-
     // EVENTS WITH PLAYER:
     PLAYER_CONNECTED_OK = 'PLAYER_CONNECTED_OK', // player connected successfully with the engine (sockets)
     PLAYER_CONNECTED_ERROR = 'PLAYER_CONNECTED_ERROR', // player couldnt connect with registry (sockets)
@@ -35,10 +32,6 @@ export enum EngineEvents {
     GAME_ENDED = 'GAME_ENDED', // the game is finished
     WINNER = 'WINNER', // when the player wins, will receive this message
     TIE = 'TIE', // when a player try to kill another and they tie
-}
-
-export enum WeatherEvents {
-    WEATHER = 'WEATHER',
 }
 
 export type Coordinate = {

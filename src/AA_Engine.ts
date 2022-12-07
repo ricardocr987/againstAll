@@ -1,19 +1,14 @@
-import { Server, Socket } from 'net'
-import { Paths } from './paths.js'
-import { existsSync, readFileSync } from 'fs'
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate } from './types.js'
+import { randomIntFromInterval, printBoard, paths } from './utils.js'
+import { Server, Socket } from 'net'
+import { existsSync, readFileSync } from 'fs'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
 import { v4 as uuid } from 'uuid'
-import axios from 'axios';
+import axios from 'axios'
 
 export class EngineServer {
-    public paths: Paths = new Paths(`./`) // is simply an object to make it easy to get the path to e.g. the database
-    
-    public io: Server // server instance
-    public authenticatedPlayers = 0
-
-    // MAPS
+    // RECORD MAPS
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // map to store the registry related player's information where the key is the alias and the value is the player instance, gets data from DB
     public playerSockets: Record<string, Socket> = {} // map to store the socket information being the key the player alias and the value the socket instance, only works to close the server when there are no players
     public connectedPlayers: Record<string, PlayerInfo> = {} // map to store the player information being the key the player alias and the value the playerInfo
@@ -23,9 +18,14 @@ export class EngineServer {
     public gameFinished: boolean = false
     public filledMap: boolean = false
     
+    // GAME MAPS
     public map: string[][] // stores the game map
     public temperatureMap: string[][] // stores the cities temperature, each position has its corresponding city temperature
 
+    
+    public io: Server // server instance
+
+    public authenticatedPlayers = 0
     public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
     public messagesRead: string[] = [] // used as a security check to only read each message only once
 
@@ -34,9 +34,6 @@ export class EngineServer {
 
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
-
-        public WEATHER_HOST: string,
-        public WEATHER_PORT: number,
 
         public MAX_PLAYERS: number,
     ) {
@@ -55,10 +52,6 @@ export class EngineServer {
         return map
     }
 
-    public printBoard() {
-        console.table(this.map)
-    }
-
     public printCityBoard() {
         console.table(this.temperatureMap)
     }
@@ -69,10 +62,10 @@ export class EngineServer {
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // when an object is created read the json to load data from old executions
-        if(!existsSync(this.paths.dataDir) || !existsSync(this.paths.dataFile('registry'))) return {}
+        if(!existsSync(paths.dataDir) || !existsSync(paths.dataFile('registry'))) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // read the file
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile("registry"), "utf8")) // read the file
         for(const player of Object.values(players)){ // loop to save all the players that had been stored in the file to the map
             registeredPlayers[player.alias] = player
         }
@@ -212,7 +205,7 @@ export class EngineServer {
                 }
                 break
         }
-        this.printBoard()
+        printBoard(this.map)
     }
 
     // it overrides the content of a position by introducing the new content 
@@ -345,8 +338,8 @@ export class EngineServer {
 
     // fill map with mines and food
     public fillMap () {
-        const minesNumber = this.randomIntFromInterval(0, 30)
-        const foodNumber = this.randomIntFromInterval(0, 30)
+        const minesNumber = randomIntFromInterval(0, 30)
+        const foodNumber = randomIntFromInterval(0, 30)
 
         for (let i = 0; i < minesNumber; i++) {
             const position = this.getFreeRandomPosition()
@@ -359,29 +352,25 @@ export class EngineServer {
         }
 
         this.filledMap = true
-        this.printBoard()
+        printBoard(this.map)
     }
 
     // returns always a free coordinate
     public getFreeRandomPosition (): Coordinate {
         let position = {
-            x: this.randomIntFromInterval(0,19),
-            y: this.randomIntFromInterval(0,19) 
+            x: randomIntFromInterval(0,19),
+            y: randomIntFromInterval(0,19) 
         }
 
         while(true) {
             if (this.map[position.x][position.y] === ' ') break
             position = {
-                x: this.randomIntFromInterval(0,19),
-                y: this.randomIntFromInterval(0,19)
+                x: randomIntFromInterval(0,19),
+                y: randomIntFromInterval(0,19)
             }
         }
 
         return position
-    }
-
-    public randomIntFromInterval(min: number, max: number) { // min and max included 
-        return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
     public async getWeatherInfo(){
@@ -436,12 +425,9 @@ function main() {
     const KAFKA_HOST = config.KAFKA_HOST || "localhost"
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose
 
-    const WEATHER_SERVER_HOST = config.WEATHER_SERVER_HOST || "localhost"
-    const WEATHER_SERVER_PORT = Number(config.WEATHER_SERVER_PORT) || 5366
-
     const MAX_PLAYERS = Number(config.MAX_PLAYERS) || 5
 
-    const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_SERVER_HOST, WEATHER_SERVER_PORT, MAX_PLAYERS)
+    const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, MAX_PLAYERS)
     engine.startAuthentication()
 
     setTimeout(() => {

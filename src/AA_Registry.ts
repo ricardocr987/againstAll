@@ -1,9 +1,9 @@
-import { Paths } from './paths.js'
+import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
+import { config } from './config.js'
+import { paths } from './utils.js'
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
-import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
-import { config } from './config.js'
 
 const options: Options = {
     semi: false,
@@ -17,7 +17,6 @@ const options: Options = {
 } // necesario para darle el formato correcto al mapa a la hora de escribir el fichero json
 
 export class Registry {
-    public paths: Paths = new Paths(`./`) // es simplemente un objecto para que sea facil obtener la ruta de por ejemplo la base de datos
     public port: number
     public io: Server
     // La idea es utilizar dos mapas:
@@ -30,10 +29,10 @@ export class Registry {
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
-        if (!existsSync(this.paths.dataFile('registry')) || !existsSync(this.paths.dataDir)) return {}
+        if (!existsSync(paths.dataFile('registry')) || !existsSync(paths.dataDir)) return {}
 
         const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(this.paths.dataFile("registry"), "utf8")) // leo fichero
+        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile("registry"), "utf8")) // leo fichero
         for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
             registeredPlayers[player.alias] = player
         }
@@ -48,10 +47,10 @@ export class Registry {
 
         this.registeredPlayers[player.alias] = player // registeredPlayers es una variable clave valor, la clave es el alias del jugador, y el valor es toda la informacion del jugador
         // esta linea almacena la informacion del nuevo jugador en el mapa
-        if(!existsSync(this.paths.dataDir)) // si no existe la carpeta data ...
-            mkdirSync(this.paths.dataDir) // ... la crea
+        if(!existsSync(paths.dataDir)) // si no existe la carpeta data ...
+            mkdirSync(paths.dataDir) // ... la crea
 
-        writeFileSync(this.paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
+        writeFileSync(paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
     }
 
     public editPlayer(player: RegistryPlayerInfo, socket: Socket) {
@@ -60,10 +59,10 @@ export class Registry {
         socket.write(RegistryEvents.EDIT_PROFILE_OK)
 
         this.registeredPlayers[player.alias] = player // simplemente sobreescribo los datos del player
-        if(!existsSync(this.paths.dataDir))
-            mkdirSync(this.paths.dataDir)
+        if(!existsSync(paths.dataDir))
+            mkdirSync(paths.dataDir)
 
-        writeFileSync(this.paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
+        writeFileSync(paths.dataFile("registry"), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
     }
 
     public Start() {
