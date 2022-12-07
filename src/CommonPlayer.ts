@@ -1,5 +1,7 @@
-import { PlayerInfo, EngineStream, EngineEvents } from './types.js'
-import { randomIntFromInterval, printBoard } from './utils.js'
+import { PlayerEvents, PlayerInfo, EngineStream, EngineEvents } from './types.js'
+import { printBoard, randomIntFromInterval } from './utils.js'
+import { KafkaUtil } from './kafka.js'
+import { v4 as uuid } from 'uuid'
 
 // aggregates same functionalities for players and NPCs
 export abstract class CommonPlayer {
@@ -32,6 +34,66 @@ export abstract class CommonPlayer {
 
         console.log('Player Info: ', this.playerInfo)
     }
+
+    // starts the kafka usage
+    public async joinGame() {
+        const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+        await kafka.producer.connect()
+        await kafka.consumer.connect()
+        await kafka.consumer.subscribe({ topic: 'engineMessages' })
+
+        await kafka.sendRecord({
+            id: uuid(),
+            event: PlayerEvents.INITIAL_MESSAGE,
+            playerInfo: this.playerInfo
+        })
+        
+        console.log('Wating for the game to start...')
+
+        try {
+            // here enters to a loop and starts to consume all the messages from kafka
+            await kafka.consumer.run({ 
+                eachMessage: async (payload) => { // payload: raw message from kafka
+                    if (Number(payload.message.timestamp) > this.timestamp) {
+                        if (payload.message.value){ // true if the value is different from undefined
+                            const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
+                            console.log(engineMessage)
+                                // i want to make sure all the messages are read only one time
+                            if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
+                                console.log(engineMessage)
+                                if (this.startedGame) {
+                                    await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
+                                    this.messagesRead.push(engineMessage.id)
+                                }
+                                else {
+                                    if (engineMessage.event === EngineEvents.GAME_STARTED) {
+                                        // we will process the kafka messages after receiving this event from the engine
+                                        this.startedGame = true
+                                        console.log('THE GAME HAS JUST STARTED')
+                                        if (engineMessage.map) this.map = engineMessage.map
+                                    }
+                                }
+                                printBoard(this.map)
+                                await this.newMomevent(kafka) // asks and send the event to the kafka cluster
+                            }
+                        }
+                        else {
+                            console.log('Error: Received a undefined message')
+                        }
+                    }
+                }
+            })
+        }
+        catch(e){
+            // if there is an error, pause and resume message consumption
+            kafka.pauseConsumer()
+            kafka.resumeConsumer()
+
+            throw e
+        }
+    }
+
+    abstract newMomevent(kafka: KafkaUtil): void | Promise<void>
 
     // true if the message includes the alias explicitly or if it a message for all
     public isEngineStreamReceiver (engineMessage: EngineStream): boolean { 

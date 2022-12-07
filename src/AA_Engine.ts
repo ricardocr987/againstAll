@@ -1,9 +1,9 @@
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStream, EngineEvents, Coordinate } from './types.js'
 import { randomIntFromInterval, printBoard, paths } from './utils.js'
-import { Server, Socket } from 'net'
-import { existsSync, readFileSync } from 'fs'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
+import { Server, Socket } from 'net'
+import { existsSync, readFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import axios from 'axios'
 

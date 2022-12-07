@@ -1,11 +1,10 @@
-import { PlayerEvents, PlayerStream, EngineStream, EngineEvents } from './types.js'
-import { intialAnswerSet, menuAnswerSet, movementSet, printBoard } from './utils.js'
+import { PlayerEvents, PlayerStream } from './types.js'
+import { intialAnswerSet, menuAnswerSet, movementSet } from './utils.js'
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
 import { CommonPlayer } from './CommonPlayer.js'
 import { Socket } from 'net'
 import promptSync, { Prompt } from 'prompt-sync'
-
 import { v4 as uuid } from 'uuid'
 
 export class Player extends CommonPlayer {
@@ -179,71 +178,13 @@ export class Player extends CommonPlayer {
         }
     }
 
-    // starts the kafka usage
-    public async joinGame() {
-        const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
-        await kafka.producer.connect()
-        await kafka.consumer.connect()
-        await kafka.consumer.subscribe({ topic: 'engineMessages' })
-
-        await kafka.sendRecord({
-            id: uuid(),
-            event: PlayerEvents.INITIAL_MESSAGE,
-            playerInfo: this.playerInfo
-        })
-        
-        console.log('Wating for the game to start...')
-
-        try {
-            // here enters to a loop and starts to consume all the messages from kafka
-            await kafka.consumer.run({ 
-                eachMessage: async (payload) => { // payload: raw message from kafka
-                    if (Number(payload.message.timestamp) > this.timestamp) {
-                        if (payload.message.value){ // true if the value is different from undefined
-                            const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                            console.log(engineMessage)
-                                // i want to make sure all the messages are read only one time
-                            if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
-                                console.log(engineMessage)
-                                if (this.startedGame) {
-                                    await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
-                                    this.messagesRead.push(engineMessage.id)
-                                }
-                                else {
-                                    if (engineMessage.event === EngineEvents.GAME_STARTED) {
-                                        // we will process the kafka messages after receiving this event from the engine
-                                        this.startedGame = true
-                                        console.log('THE GAME HAS JUST STARTED')
-                                        if (engineMessage.map) this.map = engineMessage.map
-                                    }
-                                }
-                                printBoard(this.map)
-                                await this.askMovement(kafka) // asks and send the event to the kafka cluster
-                            }
-                        }
-                        else {
-                            console.log('Error: Received a undefined message')
-                        }
-                    }
-                }
-            })
-        }
-        catch(e){
-            // if there is an error, pause and resume message consumption
-            kafka.pauseConsumer()
-            kafka.resumeConsumer()
-
-            throw e
-        }
-    }
-
     // used in the different circumstances to finish the socket communication
     public endSocket(socket: Socket){
         socket.write(PlayerEvents.END)
         socket.end()
     }
 
-    public async askMovement(kafka: KafkaUtil) {
+    public async newMomevent(kafka: KafkaUtil) {
         while(!movementSet.has(this.answer)){
             console.log('Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ')
             this.answer = this.prompt('')
