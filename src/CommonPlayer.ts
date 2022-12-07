@@ -31,7 +31,6 @@ export abstract class CommonPlayer {
             coldEffect: randomIntFromInterval(-10, 10),
             hotEffect: randomIntFromInterval(-10, 10),
         }
-
         console.log('Player Info: ', this.playerInfo)
     }
 
@@ -57,13 +56,11 @@ export abstract class CommonPlayer {
                     if (Number(payload.message.timestamp) > this.timestamp) {
                         if (payload.message.value){ // true if the value is different from undefined
                             const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                            console.log(engineMessage)
-                                // i want to make sure all the messages are read only one time
+                            // i want to make sure all the messages are read only one time
                             if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
                                 console.log(engineMessage)
                                 if (this.startedGame) {
                                     await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
-                                    this.messagesRead.push(engineMessage.id)
                                 }
                                 else {
                                     if (engineMessage.event === EngineEvents.GAME_STARTED) {
@@ -73,6 +70,7 @@ export abstract class CommonPlayer {
                                         if (engineMessage.map) this.map = engineMessage.map
                                     }
                                 }
+                                this.messagesRead.push(engineMessage.id)
                                 printBoard(this.map)
                                 await this.newMomevent(kafka) // asks and send the event to the kafka cluster
                             }
@@ -105,32 +103,24 @@ export abstract class CommonPlayer {
 
             case EngineEvents.GAME_NOT_PLAYABLE: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
                 console.log(message.playerAlias, ': ', message.error)
-                // if (this.finishedGame) kafka.pauseConsumer()
-
-                break
+                process.exit(0)
             
             case EngineEvents.GAME_ENDED:
-                //kafka.pauseConsumer()
                 this.finishedGame = true
-
                 console.log('The game has ended')
-
-                break
+                process.exit(0)
             
             case EngineEvents.DEATH:
-                //kafka.pauseConsumer()
                 this.finishedGame = true
-
                 console.log('You lost, someone or a mine killed you')
                 process.exit(0)
-
-                break
 
             case EngineEvents.MOVEMENT_OK:
                 if (message.event2) {
                     switch (message.event2) { // se podria eliminar este switch y direcrtamente mostrar el mapa
                         case EngineEvents.KILL:
-                            // podria mostrar algun mensaje o informacion sobre el playerInfo
+                            console.log('You killed someone')
+
                             break
             
                         case EngineEvents.LEVEL_UP:
@@ -145,6 +135,7 @@ export abstract class CommonPlayer {
             
                     }
                 }
+                
 
                 break
 
@@ -154,7 +145,6 @@ export abstract class CommonPlayer {
 
                 break
         }
-        if (message.map) printBoard(message.map)
     }
 
     public changePosition(answer: string) {
