@@ -42,6 +42,8 @@ export class EngineServer {
         this.temperatureMap = this.getEmptyMap()
     }
 
+    /* ------------------------------------ MAP METHODS ------------------------------------ */
+
     public getEmptyMap(): string[][] {
         const map: string[][] = []
 
@@ -52,10 +54,51 @@ export class EngineServer {
         return map
     }
 
-    // it overrides the content of a position by introducing the new content 
-    public modifyCityBoard(toIntroduce: string, position: Coordinate) { 
-        this.temperatureMap[position.x][position.y] = toIntroduce // modifies the content of the map 
+    // fill map with mines and food
+    public fillMap () {
+        const minesNumber = randomIntFromInterval(0, 30)
+        const foodNumber = randomIntFromInterval(0, 30)
+
+        for (let i = 0; i < minesNumber; i++) {
+            const position = this.getFreeRandomPosition()
+            this.modifyBoard('M', position)
+        }
+
+        for (let i = 0; i < foodNumber; i++) {
+            const position = this.getFreeRandomPosition()
+            this.modifyBoard('A', position)
+        }
+
+        this.filledMap = true
+        printBoard(this.map)
     }
+
+    // returns always a free coordinate
+    public getFreeRandomPosition (): Coordinate {
+        let position = {
+            x: randomIntFromInterval(0,19),
+            y: randomIntFromInterval(0,19) 
+        }
+
+        while(true) {
+            if (this.map[position.x][position.y] === ' ') break
+            position = {
+                x: randomIntFromInterval(0,19),
+                y: randomIntFromInterval(0,19)
+            }
+        }
+
+        return position
+    }
+
+    // it overrides the content of a position by introducing the new content 
+    public modifyBoard(toIntroduce: string, position: Coordinate) { 
+        this.map[position.x][position.y] = toIntroduce // modifies the content of the map
+        if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
+        // position updated in the playersInfo map
+    }
+
+    /* ------------------------------------ PLAYER METHODS ------------------------------------ */
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // when an object is created read the json to load data from old executions
         if(!existsSync(paths.dataDir) || !existsSync(paths.dataFile('registry'))) return {}
@@ -77,6 +120,28 @@ export class EngineServer {
         socket.write(RegistryEvents.SIGN_IN_OK)
         this.authenticatedPlayers++
     }
+
+    public initilizePlayerInfo(playerInfo: PlayerInfo) {
+        console.log(playerInfo)
+        this.connectedPlayers[playerInfo.alias] = playerInfo
+        this.modifyBoard(playerInfo.alias, playerInfo.position)
+    }
+
+    public getPlayersLevel(cityTemperature: number, actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo): number[] {
+        if (cityTemperature < 10) {
+            return [actualPlayer.baseLevel + actualPlayer.coldEffect, attackedPlayer.baseLevel + attackedPlayer.coldEffect]
+        }
+        else {
+            if (cityTemperature > 25) {
+                return [actualPlayer.baseLevel + actualPlayer.hotEffect, attackedPlayer.baseLevel + attackedPlayer.hotEffect]
+            }
+            else {
+                return [actualPlayer.baseLevel, attackedPlayer.baseLevel]
+            }
+        }
+    }
+
+    /* ------------------------------------ GAME METHODS ------------------------------------ */
 
     public startAuthentication() {
         this.io.on('connection', (socket: Socket) => {
@@ -170,12 +235,6 @@ export class EngineServer {
         // desarrollar un timeout de la partida que la termine cuando el contador sea 0, gana el que mas nivel tiene
     }
 
-    public initilizePlayerInfo(playerInfo: PlayerInfo) {
-        console.log(playerInfo)
-        this.connectedPlayers[playerInfo.alias] = playerInfo
-        this.modifyBoard(playerInfo.alias, playerInfo.position)
-    }
-
     /* 
         Engine only receives two kind of events:
         - REQUEST_TO_JOIN: 
@@ -208,13 +267,6 @@ export class EngineServer {
         printBoard(this.map)
     }
 
-    // it overrides the content of a position by introducing the new content 
-    public modifyBoard(toIntroduce: string, position: Coordinate) { 
-        this.map[position.x][position.y] = toIntroduce // modifies the content of the map
-        if (this.connectedPlayers[toIntroduce]) this.connectedPlayers[toIntroduce].position = position // if the string is the player alias, also changes his position
-        // position updated in the playersInfo map
-    }
-
     public async updateBoard(playerInfo: PlayerInfo, kafka: KafkaUtil) {
         const previousPosition = this.connectedPlayers[playerInfo.alias].position // stores the previous position, to delete the player there
         this.modifyBoard(' ', previousPosition) // deletes the player from the previous coordinate he was (empyting the coordinate)
@@ -222,46 +274,45 @@ export class EngineServer {
         const newPosition = playerInfo.position // stores the new position that maybe the player will be
         const newPositionContent = this.map[newPosition.x][newPosition.y]
 
-        if(newPositionContent !== ' ') { // if that coordinate was already occupied, we need to manage the situation
-            switch (newPositionContent) {
-                case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
-                    await kafka.sendRecord({
-                        id: uuid(),
-                        event: EngineEvents.DEATH,
-                        playerAlias: playerInfo.alias,
-                        map: this.map
-                    })
-                    delete this.connectedPlayers[playerInfo.alias]
+        switch (newPositionContent) {
+            case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
+                await kafka.sendRecord({
+                    id: uuid(),
+                    event: EngineEvents.DEATH,
+                    playerAlias: playerInfo.alias,
+                    map: this.map
+                })
+                delete this.connectedPlayers[playerInfo.alias]
 
-                    break
-                case 'A': // food, levels up in the players info map and sends the event to the player
-                    this.modifyBoard(playerInfo.alias, newPosition)
+                break
+            case 'A': // food, levels up in the players info map and sends the event to the player
+                this.modifyBoard(playerInfo.alias, newPosition)
 
-                    await kafka.sendRecord({
-                        id: uuid(),
-                        event: EngineEvents.MOVEMENT_OK,
-                        event2: EngineEvents.LEVEL_UP,
-                        playerAlias: playerInfo.alias,
-                        map: this.map
-                    })
-                    this.connectedPlayers[playerInfo.alias].baseLevel++
+                await kafka.sendRecord({
+                    id: uuid(),
+                    event: EngineEvents.MOVEMENT_OK,
+                    event2: EngineEvents.LEVEL_UP,
+                    playerAlias: playerInfo.alias,
+                    map: this.map
+                })
+                this.connectedPlayers[playerInfo.alias].baseLevel++
 
-                    break
-                default:
-                    if (this.connectedPlayers[newPositionContent]) { // if it is a player
-                        await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
-                    }
-            }
-        }
-        else { // if it was free, it isnt needed to manage the situation
-            this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
+                break
+            
+            case ' ': // coordinate free
+                this.modifyBoard(playerInfo.alias, newPosition) // position updated in the game map/board
 
-            await kafka.sendRecord({
-                id: uuid(),
-                event: EngineEvents.MOVEMENT_OK,
-                playerAlias: playerInfo.alias,
-                map: this.map
-            })
+                await kafka.sendRecord({
+                    id: uuid(),
+                    event: EngineEvents.MOVEMENT_OK,
+                    playerAlias: playerInfo.alias,
+                    map: this.map
+                })
+
+                break
+
+            default: // player or npc
+                if (this.connectedPlayers[newPositionContent]) await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
         }
     }
 
@@ -318,60 +369,7 @@ export class EngineServer {
         }
     }
 
-    public getCityTemperature(position: Coordinate): number {
-        return Number(this.temperatureMap[position.x][position.y])
-    }
-
-    public getPlayersLevel(cityTemperature: number, actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo): number[] {
-        if (cityTemperature < 10) {
-            return [actualPlayer.baseLevel + actualPlayer.coldEffect, attackedPlayer.baseLevel + attackedPlayer.coldEffect]
-        }
-        else {
-            if (cityTemperature > 25) {
-                return [actualPlayer.baseLevel + actualPlayer.hotEffect, attackedPlayer.baseLevel + attackedPlayer.hotEffect]
-            }
-            else {
-                return [actualPlayer.baseLevel, attackedPlayer.baseLevel]
-            }
-        }
-    }
-
-    // fill map with mines and food
-    public fillMap () {
-        const minesNumber = randomIntFromInterval(0, 30)
-        const foodNumber = randomIntFromInterval(0, 30)
-
-        for (let i = 0; i < minesNumber; i++) {
-            const position = this.getFreeRandomPosition()
-            this.modifyBoard('M', position)
-        }
-
-        for (let i = 0; i < foodNumber; i++) {
-            const position = this.getFreeRandomPosition()
-            this.modifyBoard('A', position)
-        }
-
-        this.filledMap = true
-        printBoard(this.map)
-    }
-
-    // returns always a free coordinate
-    public getFreeRandomPosition (): Coordinate {
-        let position = {
-            x: randomIntFromInterval(0,19),
-            y: randomIntFromInterval(0,19) 
-        }
-
-        while(true) {
-            if (this.map[position.x][position.y] === ' ') break
-            position = {
-                x: randomIntFromInterval(0,19),
-                y: randomIntFromInterval(0,19)
-            }
-        }
-
-        return position
-    }
+    /* ------------------------------------ WEATHER METHODS ------------------------------------ */
 
     public async getWeatherInfo(){
         if(config.CITIES){
@@ -386,6 +384,11 @@ export class EngineServer {
             }
         }
         this.fillCitiesMap()
+    }
+
+    // it overrides the content of a position by introducing the new content 
+    public modifyCityBoard(toIntroduce: string, position: Coordinate) { 
+        this.temperatureMap[position.x][position.y] = toIntroduce // modifies the content of the map 
     }
 
     public fillCitiesMap () {
@@ -416,6 +419,10 @@ export class EngineServer {
             }
         }
         printBoard(this.temperatureMap)
+    }
+
+    public getCityTemperature(position: Coordinate): number {
+        return Number(this.temperatureMap[position.x][position.y])
     }
 }
 

@@ -13,9 +13,15 @@ export class NPC extends CommonPlayer {
         const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
         await kafka.producer.connect()
         await kafka.consumer.connect()
-        await kafka.consumer.subscribe({ topic: 'engineMessages', /*fromBeginning: true*/ })
+        await kafka.consumer.subscribe({ topic: 'engineMessages' })
         
         this.playerInfo.alias += randomIntFromInterval(0, 99).toString() // added an random id to the alias 'NPC'
+
+        await kafka.sendRecord({
+            id: uuid(),
+            event: PlayerEvents.INITIAL_MESSAGE,
+            playerInfo: this.playerInfo
+        })
 
         console.log('Wating for the game to start...')
 
@@ -26,14 +32,12 @@ export class NPC extends CommonPlayer {
                     if (Number(payload.message.timestamp) > this.timestamp) {
                         if (payload.message.value){ // true if the value is different from undefined
                             const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
-                            //console.log(engineMessage)
-                            if (!this.messagesRead.includes(engineMessage.id)) { // i want to make sure all the messages are read only one time
+                            // i want to make sure all the messages are read only one time
+                            if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
+                                console.log(engineMessage)
                                 if (this.startedGame) {
-                                    // only matters if engine write the alias of the player or if it is for all players
-                                    if (this.isEngineStreamReceiver(engineMessage)){
-                                        await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
-                                        this.messagesRead.push(engineMessage.id)
-                                    }
+                                    await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
+                                    this.messagesRead.push(engineMessage.id)
                                 }
                                 else {
                                     if (engineMessage.event === EngineEvents.GAME_STARTED) {
@@ -41,15 +45,11 @@ export class NPC extends CommonPlayer {
                                         this.startedGame = true
                                         console.log('THE GAME HAS JUST STARTED')
                                         if (engineMessage.map) {
-                                            await kafka.sendRecord({
-                                                id: uuid(),
-                                                event: PlayerEvents.INITIAL_MESSAGE,
-                                                playerInfo: this.playerInfo
-                                            })
-                                            printBoard(engineMessage.map)
+                                            this.map = engineMessage.map
                                         }
                                     }
                                 }
+                                printBoard(this.map)
                                 await this.sendNewMovement(kafka) // asks and send the event to the kafka cluster
                             }
                         }

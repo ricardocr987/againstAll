@@ -13,6 +13,8 @@ export abstract class CommonPlayer {
     public startedGame = false
     public finishedGame = false
 
+    public map: string[][] = []
+
     constructor(
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
