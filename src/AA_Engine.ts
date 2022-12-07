@@ -5,7 +5,7 @@ import { PlayerEvents, RegistryEvents, RegistryPlayerInfo, PlayerInfo, PlayerStr
 import { KafkaUtil } from './kafka.js'
 import { config } from './config.js'
 import { v4 as uuid } from 'uuid'
-import fetch from 'node-fetch'
+import axios from 'axios';
 
 export class EngineServer {
     public paths: Paths = new Paths(`./`) // is simply an object to make it easy to get the path to e.g. the database
@@ -17,7 +17,6 @@ export class EngineServer {
     public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // map to store the registry related player's information where the key is the alias and the value is the player instance, gets data from DB
     public playerSockets: Record<string, Socket> = {} // map to store the socket information being the key the player alias and the value the socket instance, only works to close the server when there are no players
     public connectedPlayers: Record<string, PlayerInfo> = {} // map to store the player information being the key the player alias and the value the playerInfo
-    public cityNames: string[] = [] // storing the 4 city names
     public cityInfo: Record<string, number> = {} // key: name of the city, value: weather info
 
     // FLAGS
@@ -25,16 +24,10 @@ export class EngineServer {
     public filledMap: boolean = false
     
     public map: string[][] // stores the game map
-    public cityMap: string[][] // stores the city names, each position has its corresponding city name
+    public temperatureMap: string[][] // stores the cities temperature, each position has its corresponding city temperature
 
-    public timestamp: number = Date.now()
-    public messagesRead: string[] = []
-
-    //Weather
-    public city : string[] = []
-    public weather: any
-    public cities : number = 0
-    public citiesSent: number [] = []
+    public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
+    public messagesRead: string[] = [] // used as a security check to only read each message only once
 
     constructor(        
         public SERVER_PORT: number,
@@ -49,7 +42,7 @@ export class EngineServer {
     ) {
         this.io = new Server()
         this.map = this.getEmptyMap()
-        this.cityMap = this.getEmptyMap()
+        this.temperatureMap = this.getEmptyMap()
     }
 
     public getEmptyMap(): string[][] {
@@ -67,12 +60,12 @@ export class EngineServer {
     }
 
     public printCityBoard() {
-        console.table(this.cityMap)
+        console.table(this.temperatureMap)
     }
 
     // it overrides the content of a position by introducing the new content 
     public modifyCityBoard(toIntroduce: string, position: Coordinate) { 
-        this.cityMap[position.x][position.y] = toIntroduce // modifies the content of the map 
+        this.temperatureMap[position.x][position.y] = toIntroduce // modifies the content of the map 
     }
 
     public getPlayers(): Record<string, RegistryPlayerInfo> { // when an object is created read the json to load data from old executions
@@ -140,12 +133,12 @@ export class EngineServer {
     }
 
     public async newGame() {
-        const kafka = new KafkaUtil('server', 'engine', 'playerMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
+        await this.getWeatherInfo()
 
+        const kafka = new KafkaUtil('server', 'engine', 'playerMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
         await kafka.producer.connect()
         await kafka.consumer.connect()
-
-        await kafka.consumer.subscribe({ topic: 'playerMessages'/*, fromBeginning: true */})
+        await kafka.consumer.subscribe({ topic: 'playerMessages' })
 
         if (!this.filledMap) this.fillMap()
 
@@ -333,8 +326,7 @@ export class EngineServer {
     }
 
     public getCityTemperature(position: Coordinate): number {
-        const name = this.cityMap[position.x][position.y]
-        return this.cityInfo[name]
+        return Number(this.temperatureMap[position.x][position.y])
     }
 
     public getPlayersLevel(cityTemperature: number, actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo): number[] {
@@ -392,87 +384,44 @@ export class EngineServer {
         return Math.floor(Math.random() * (max - min + 1) + min)
     }
 
-    public getCity(){
-        this.city = ['London', 'Zocca', 'Madrid', 'New York', 'Paris', 'Tokyo', 'Valencia', 'Manchester', 'Milan', 'Liverpool', 'Napoles', 'Hong Kong', 'Medellin', 'Murcia', 'Granada', 'Venecia', 'Prague', 'Krakow', 'Roma', 'Moscow']
-        const x= this.randomIntFromInterval(0,19)
-        if(this.citiesSent.includes(x)){
-            this.getCity()
-        }
-        else{
-            this.getWeatherInfo(this.city[x])
-            this.citiesSent.push(x)
-        }
-    }
-
-    public async getWeatherInfo(x: string){
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${x}&appid=274d9ed11cbef3a98393a23a34f79bb7&units=metric`)
-        this.weather = await res.json()
-        //console.log(this.weather.main.temp, this.weather.name)
-       // this.getCitiesInfo1(this.weather.name, this.weather.main.temp)
-
-        console.log(`Received: ${this.weather.name} ${this.weather.main.temp}`)
-        this.cityInfo[this.weather.name] = Number(this.weather.main.temp)
-        this.cityNames.push(this.weather.name)
-        this.cities++
-
-        if(this.cities<4){
-            this.getCity()
-        }
-    }
-
-    public getCitiesInfo() {
-        console.log(`Connecting to ${this.WEATHER_HOST}:${this.WEATHER_PORT}`) 
-
-        const socket = new Socket() 
-        socket.connect(this.WEATHER_PORT, this.WEATHER_HOST) 
-        socket.setEncoding("utf-8")
-
-        let requestId = 0
-
-        socket.on("connect", () => {
-            console.log(`Connected to Weather`) 
-
-            socket.write(`${EngineEvents.GET_CITY_INFO}`)
-            console.log('Doing a city info request')
-
-            socket.on("data", (data) => { // here is entered when the engine receives information from weather server
-                const [_, name, temperature] = data.toString().split(':')
-                console.log(`Received: ${name} ${temperature}`)
-                this.cityInfo[name] = Number(temperature)
-                this.cityNames.push(name)
-                requestId++
-
-                if(requestId < 4) {
-                    socket.write(`${EngineEvents.GET_CITY_INFO}`)
-                    console.log('Doing a city info request')
+    public async getWeatherInfo(){
+        if(config.CITIES){
+            for(const city of config.CITIES) {
+                try {
+                    // Define the API endpoint
+                    const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${config.API_KEY_WEATHER}`)
+                    this.cityInfo[city] = (response.data.main.temp - 32) * 5 / 9
+                } catch (error) {
+                    console.error(error)
                 }
-                else {
-                    this.fillCitiesMap()
-                    socket.end() 
-                }
-            }) 
-        })
+            }
+        }
+        this.fillCitiesMap()
     }
 
     public fillCitiesMap () {
-        for (let i = 0; i < 20; i++) {
-            if (i < 10) {
-                for(let j = 0; j < 20; j++) {
-                    if (j < 10) {
-                        this.modifyCityBoard(this.cityNames[0], { x: i, y: j })
-                    }
-                    else {
-                        this.modifyCityBoard(this.cityNames[1], { x: i, y: j })
+        if(config.CITIES) {
+            for (let i = 0; i < 20; i++) {
+                if (i < 10) {
+                    for(let j = 0; j < 20; j++) {
+                        const position: Coordinate = { x: i, y: j }
+                        if (j < 10) {
+                            this.modifyCityBoard(this.cityInfo[config.CITIES[0]].toString(), position)
+                        }
+                        else {
+                            this.modifyCityBoard(this.cityInfo[config.CITIES[1]].toString(), position)
+                        }
                     }
                 }
-            }
-            else {
-                for(let j = 0; j < 20; j++) {
-                    if (j < 10) {
-                        this.modifyCityBoard(this.cityNames[2], { x: i, y: j })
-                    }
-                    else {
-                        this.modifyCityBoard(this.cityNames[3], { x: i, y: j })
+                else {
+                    for(let j = 0; j < 20; j++) {
+                        const position: Coordinate = { x: i, y: j }
+                        if (j < 10) {
+                            this.modifyCityBoard(this.cityInfo[config.CITIES[2]].toString(), position)
+                        }
+                        else {
+                            this.modifyCityBoard(this.cityInfo[config.CITIES[3]].toString(), position)
+                        }
                     }
                 }
             }
@@ -495,12 +444,8 @@ function main() {
     const engine = new EngineServer(ENGINE_SERVER_PORT, KAFKA_HOST, KAFKA_PORT, WEATHER_SERVER_HOST, WEATHER_SERVER_PORT, MAX_PLAYERS)
     engine.startAuthentication()
 
-        /////
-        engine.getCity()
-    
     setTimeout(() => {
         engine.io.close()
-        engine.getCitiesInfo()
         setTimeout(async () => {
             await engine.newGame()
         }, 5000)
