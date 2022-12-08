@@ -35,7 +35,7 @@ async function main() {
     const KAFKA_PORT = Number(config.KAFKA_PORT) || 9092 // docker-compose (KAFKA_LISTENERS)
 
     const npc = new NPC(KAFKA_HOST, KAFKA_PORT)
-    npc.playerInfo.alias += uuid() // added an random id to the alias 'NPC'
+    npc.playerInfo.alias += randomIntFromInterval(0, 99) // added an random id to the alias 'NPC'
     await npc.joinGame()
 }
 

@@ -1,5 +1,6 @@
 import { PlayerEvents, PlayerInfo, EngineStream, EngineEvents } from './types.js'
-import { printBoard, randomIntFromInterval } from './utils.js'
+import { randomIntFromInterval } from './utils.js'
+import { GameBoard } from './board.js'
 import { KafkaUtil } from './kafka.js'
 import { v4 as uuid } from 'uuid'
 
@@ -15,7 +16,7 @@ export abstract class CommonPlayer {
     public startedGame = false
     public finishedGame = false
 
-    public map: string[][] = []
+    public gameBoard: GameBoard = new GameBoard()
 
     constructor(
         public KAFKA_HOST: string,
@@ -58,7 +59,7 @@ export abstract class CommonPlayer {
                             const engineMessage: EngineStream = JSON.parse(payload.message.value.toString()) // converts the value in a JSON (kind of deserialization), Buffer -> string -> JSON
                             // i want to make sure all the messages are read only one time
                             if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
-                                console.log(engineMessage)
+                                //console.log(engineMessage)
                                 if (this.startedGame) {
                                     await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                                 }
@@ -67,11 +68,14 @@ export abstract class CommonPlayer {
                                         // we will process the kafka messages after receiving this event from the engine
                                         this.startedGame = true
                                         console.log('THE GAME HAS JUST STARTED')
-                                        if (engineMessage.map) this.map = engineMessage.map
+                                        if (engineMessage.map) {
+                                            this.gameBoard.setBoard(engineMessage.map)
+                                            this.gameBoard.modifyBoard(this.playerInfo.alias, this.playerInfo.position)
+                                        } 
                                     }
                                 }
                                 this.messagesRead.push(engineMessage.id)
-                                printBoard(this.map)
+                                this.gameBoard.printBoard()
                                 await this.newMomevent(kafka) // asks and send the event to the kafka cluster
                             }
                         }
@@ -136,7 +140,6 @@ export abstract class CommonPlayer {
                     }
                 }
                 
-
                 break
 
             case EngineEvents.MOVEMENT_ERROR:
@@ -145,6 +148,8 @@ export abstract class CommonPlayer {
 
                 break
         }
+
+        if(message.map) this.gameBoard.setBoard(message.map)
     }
 
     public changePosition(answer: string) {
