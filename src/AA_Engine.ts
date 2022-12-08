@@ -19,11 +19,11 @@ export class EngineServer {
     public filledMap: boolean = false
     
     // GAME MAPS
-    public map: string[][] // stores the game map
-    public temperatureMap: string[][] // stores the cities temperature, each position has its corresponding city temperature
-
+    public map: string[][] = this.getEmptyMap() // stores the game map
+    public temperatureMap: string[][] = this.getEmptyMap() // stores the cities temperature, each position has its corresponding city temperature
+    public cities: string[] = config.CITIES?.split(',') || ['Napoles', 'London', 'Prague', 'Liverpool']
     
-    public io: Server // server instance
+    public io: Server = new Server() // server instance
 
     public authenticatedPlayers = 0
     public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
@@ -36,11 +36,7 @@ export class EngineServer {
         public KAFKA_PORT: number,
 
         public MAX_PLAYERS: number,
-    ) {
-        this.io = new Server()
-        this.map = this.getEmptyMap()
-        this.temperatureMap = this.getEmptyMap()
-    }
+    ) {}
 
     /* ------------------------------------ MAP METHODS ------------------------------------ */
 
@@ -372,15 +368,13 @@ export class EngineServer {
     /* ------------------------------------ WEATHER METHODS ------------------------------------ */
 
     public async getWeatherInfo(){
-        if(config.CITIES){
-            for(const city of config.CITIES) {
-                try {
-                    // Define the API endpoint
-                    const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${config.API_KEY_WEATHER}`)
-                    this.cityInfo[city] = (response.data.main.temp - 32) * 5 / 9
-                } catch (error) {
-                    console.error(error)
-                }
+        for(const city of this.cities) {
+            try {
+                // Define the API endpoint
+                const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${config.API_KEY_WEATHER}`)
+                this.cityInfo[city] = (response.data.main.temp - 273.15)
+            } catch (error) {
+                console.error(error)
             }
         }
         this.fillCitiesMap()
@@ -392,28 +386,26 @@ export class EngineServer {
     }
 
     public fillCitiesMap () {
-        if(config.CITIES) {
-            for (let i = 0; i < 20; i++) {
-                if (i < 10) {
-                    for(let j = 0; j < 20; j++) {
-                        const position: Coordinate = { x: i, y: j }
-                        if (j < 10) {
-                            this.modifyCityBoard(this.cityInfo[config.CITIES[0]].toString(), position)
-                        }
-                        else {
-                            this.modifyCityBoard(this.cityInfo[config.CITIES[1]].toString(), position)
-                        }
+        for (let i = 0; i < 20; i++) {
+            if (i < 10) {
+                for(let j = 0; j < 20; j++) {
+                    const position: Coordinate = { x: i, y: j }
+                    if (j < 10) {
+                        this.modifyCityBoard(this.cityInfo[this.cities[0]].toString(), position)
+                    }
+                    else {
+                        this.modifyCityBoard(this.cityInfo[this.cities[1]].toString(), position)
                     }
                 }
-                else {
-                    for(let j = 0; j < 20; j++) {
-                        const position: Coordinate = { x: i, y: j }
-                        if (j < 10) {
-                            this.modifyCityBoard(this.cityInfo[config.CITIES[2]].toString(), position)
-                        }
-                        else {
-                            this.modifyCityBoard(this.cityInfo[config.CITIES[3]].toString(), position)
-                        }
+            }
+            else {
+                for(let j = 0; j < 20; j++) {
+                    const position: Coordinate = { x: i, y: j }
+                    if (j < 10) {
+                        this.modifyCityBoard(this.cityInfo[this.cities[2]].toString(), position)
+                    }
+                    else {
+                        this.modifyCityBoard(this.cityInfo[this.cities[3]].toString(), position)
                     }
                 }
             }

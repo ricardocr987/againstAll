@@ -9,9 +9,11 @@ services:
   kafka:
     image: 'bitnami/kafka:latest'
     container_name: 'kafka'
+    hostname: localhost
     ports:
       - '9092:9092'
     environment:
+      - KAFKA_ADVERTISED_HOST_NAME=localhost
       - KAFKA_BROKER_ID=1
       - KAFKA_LISTENERS=PLAINTEXT://:9092
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://:9092
