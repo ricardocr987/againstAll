@@ -1,17 +1,11 @@
 *TO-DO:*
-
-- Parametrizar KAFKA host y MAX PLAYERS
-- Varios engines
-- Capturar fallos de caídas de servidores y que muestren mensajes en vez de que se lancen errores
-- Hacer los cambios que se hicieron el día de la demo (printBoard, winner)
-
-(P2):
-- Conexion Registry-Player por API_REST: https://bravedeveloper.com/2021/03/22/crear-un-api-rest-con-nodejs-y-express-nunca-fue-tan-provechoso-y-sencillo/
-- Consumo de API_rest de un servidor de clima
-- API_Engine
+- Arreglar registry con Sockets
+- Manejar servidores caidos (comprobar en todos los servicios que pasa cuando otra componente este caido y capturar los errores para mostrar los mensajes)
+- Auditoría de eventos en el Registry
+- Cifrado de los datos entre Engine y los Jugadores
+- Autenticación segura entre los Jugadores y el Registry: cifrado del canal y protección segura de las contraseñas. API_REST con Firebase: https://firebase.google.com/docs/reference/rest/database 
+- API_Engine con Firebase
 - Frontend
-
--API KEY del Weather = 274d9ed11cbef3a98393a23a34f79bb7
 
 *Software necesario:*
 
