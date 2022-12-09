@@ -30,3 +30,7 @@
 7. npm run start:weather
 8. npm run start:engine
 9. npm run start:player
+
+*Para actualizar mi rama $ git merge main*
+*Firebase de google como bd*
+*para abrir puerto desde ./REST_SD npm start / node appSD.js*
