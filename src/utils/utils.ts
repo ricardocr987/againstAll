@@ -24,7 +24,7 @@ export function randomIntFromInterval(min: number, max: number) { // min and max
 }
 
 export function delay(ms: number) {
-    return new Promise( resolve => setTimeout(resolve, ms) );
+    return new Promise( resolve => setTimeout(resolve, ms) )
 }
 
 export const intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
