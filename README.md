@@ -7,6 +7,10 @@
 - API_Engine con Firebase
 - Frontend
 
+*Notas:*
+- En el front solo se ve el estado de la partida, los jugadores se mueven como antes
+- Configurar certificado del servidor https (front-end)
+
 *Software necesario:*
 
 - Node.js (16.17.1)

@@ -1,6 +1,6 @@
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
-import { config } from './config.js'
-import { paths } from './utils.js'
+import { config } from './utils/config.js'
+import { paths } from './utils/utils.js'
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'

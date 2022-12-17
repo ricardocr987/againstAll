@@ -1,4 +1,4 @@
-import { randomIntFromInterval } from './utils.js'
+import { randomIntFromInterval } from './utils/utils.js'
 import { PlayerInfo, Coordinate } from './types.js'
 
 export class GameBoard {

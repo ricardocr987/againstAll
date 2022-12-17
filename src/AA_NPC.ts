@@ -1,8 +1,8 @@
 import { PlayerStream, PlayerEvents } from './types.js'
-import { randomIntFromInterval, movementsArray, delay } from './utils.js'
+import { randomIntFromInterval, movementsArray, delay } from './utils/utils.js'
 import { CommonPlayer } from './CommonPlayer.js'
-import { config } from './config.js'
-import { KafkaUtil } from './kafka.js'
+import { config } from './utils/config.js'
+import { KafkaUtil } from './utils/kafka.js'
 import { v4 as uuid } from 'uuid'
 
 export class NPC extends CommonPlayer {

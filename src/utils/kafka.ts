@@ -1,5 +1,5 @@
 import { Kafka, Producer, Message, Consumer } from 'kafkajs' 
-import { EngineStream, PlayerStream, UnionStream } from './types.js'
+import { EngineStream, PlayerStream, UnionStream } from '../types.js'
 import { kafkaConfig } from './config.js'
 
 // as both engine and player perform a bidirectional communication, i.e. they are both producers and consumers at the same time

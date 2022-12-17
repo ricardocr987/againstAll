@@ -1,7 +1,7 @@
 import { PlayerEvents, PlayerInfo, EngineStream, EngineEvents } from './types.js'
-import { randomIntFromInterval } from './utils.js'
+import { randomIntFromInterval } from './utils/utils.js'
 import { GameBoard } from './board.js'
-import { KafkaUtil } from './kafka.js'
+import { KafkaUtil } from './utils/kafka.js'
 import { v4 as uuid } from 'uuid'
 
 // aggregates same functionalities for players and NPCs
