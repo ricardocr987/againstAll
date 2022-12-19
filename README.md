@@ -1,7 +1,7 @@
 *TO-DO:*
 - Arreglar registry con Sockets
 - Manejar servidores caidos (comprobar en todos los servicios que pasa cuando otra componente este caido y capturar los errores para mostrar los mensajes)
-- Auditoría de eventos en el Registry
+- Auditoría de eventos en el Registry (ip, operac, timestamp)
 - Cifrado de los datos entre Engine y los Jugadores
 - Autenticación segura entre los Jugadores y el Registry: cifrado del canal y protección segura de las contraseñas. API_REST con Firebase: https://firebase.google.com/docs/reference/rest/database 
 - API_Engine con Firebase
@@ -27,4 +27,6 @@
 
 *Para actualizar mi rama $ git merge main*
 *Firebase de google como bd*
-*para abrir puerto desde ./REST_SD npm start / node appSD.js*
+*para abrir puerto desde ./REST_SD npm start / node dist/appSD.js en http://localhost:3000/*
+
+*Escribir en un .txt desde engine los sucesos de la partida e ir enviando este .txt a appSD.js según sucedan los cambios*

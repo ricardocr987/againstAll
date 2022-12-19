@@ -42,27 +42,24 @@ export class Registry {
 
     public registerPlayer(player: RegistryPlayerInfo, socket: Socket) { // creo perfil de player
         if(this.registeredPlayers[player.alias]) throw new Error('There is already a player with the same alias')
-
-        socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
-
         this.registeredPlayers[player.alias] = player // registeredPlayers es una variable clave valor, la clave es el alias del jugador, y el valor es toda la informacion del jugador
         // esta linea almacena la informacion del nuevo jugador en el mapa
         if(!existsSync(paths.dataDir)) // si no existe la carpeta data ...
             mkdirSync(paths.dataDir) // ... la crea
 
         writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
+        socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
     }
 
     public editPlayer(player: RegistryPlayerInfo, socket: Socket) {
         if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
 
-        socket.write(RegistryEvents.EDIT_PROFILE_OK)
-
         this.registeredPlayers[player.alias] = player // simplemente sobreescribo los datos del player
         if(!existsSync(paths.dataDir))
             mkdirSync(paths.dataDir)
 
-        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options))
+        socket.write(RegistryEvents.EDIT_PROFILE_OK)
     }
 
     public Start() {
@@ -76,6 +73,7 @@ export class Registry {
 
                 if (!this.playerSockets[alias]) this.playerSockets[alias] = socket
                 console.log(`Received this message from the player: ${event}:${alias}:${password}`)
+                console.log(alias, password)
 
                 const playerInfo: RegistryPlayerInfo = {
                     alias,
@@ -102,7 +100,15 @@ export class Registry {
                         console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
-                        // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
+                        break
+                    case PlayerEvents.CHECK_PLAYER:
+                        try{
+                           // COMPROBAR QUE EXISTE ESE PLAYER INFO EN registeredPlayers, CREAR EVENTS OK Y ERROR EN REGISTRY EVENT
+                           // IF NO EXISTE socket.write(`${RegistryEvents.CHECK_PLAYER_ERROR}:${e}`)
+                            // SI EXITE ENVIAR MENSJE OK
+                        } catch(e){
+                            socket.write(`${RegistryEvents.CHECK_PLAYER_ERROR}:${e}`)
+                        }
                         break
                 }           
             }) 

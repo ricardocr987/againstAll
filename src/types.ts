@@ -1,5 +1,6 @@
 export enum PlayerEvents {
     // Registry & engine authentication events
+    CHECK_PLAYER = 'CHECK_PLAYER',
     SIGN_IN = 'SIGN_IN',
     SIGN_UP = 'SIGN_UP',
     EDIT_PROFILE = 'EDIT_PROFILE',
@@ -10,6 +11,8 @@ export enum PlayerEvents {
 }
 
 export enum RegistryEvents {
+    CHECK_PLAYER_OK = 'CHECK_PLAYER_OK',
+    CHECK_PLAYER_ERROR = 'CHECK_PLAYER_ERROR',
     SIGN_IN_OK = 'SIGN_IN_OK',
     SIGN_UP_OK = 'SIGN_UP_OK',
     EDIT_PROFILE_OK = 'EDIT_PROFILE_OK',
