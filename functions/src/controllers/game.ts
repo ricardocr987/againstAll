@@ -35,18 +35,18 @@ const createGame = async (req: GameRequest, res: Response) => {
   }
   
   const updateGame = async (req: GameRequest, res: Response) => {
-    const { body: { id, map }, params: { gameId } } = req
+    const { body: { map }, params: { gameId } } = req
   
     try {
-        const games = db.collection(gameCollection).doc(gameId)
-        const currentData = (await games.get()).data() || {}
+        const game = db.collection(gameCollection).doc(gameId)
+        const currentData = (await game.get()).data() || {}
         
         const gameObject = {
-            id: id || currentData.id,
+            id: game.id,
             map: map || currentData.map,
         }
     
-        await games.set(gameObject).catch(error => {
+        await game.set(gameObject).catch(error => {
             return res.status(400).json({
             status: 'error',
             message: error.message
@@ -70,8 +70,8 @@ const deleteGame = async (req: GameRequest, res: Response) => {
     
         await game.delete().catch(error => {
             return res.status(400).json({
-            status: 'error',
-            message: error.message
+                status: 'error',
+                message: error.message
             })
         })
     

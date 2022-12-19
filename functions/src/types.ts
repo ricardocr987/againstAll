@@ -9,8 +9,7 @@ export type PlayerRequest = {
 }
 
 export type Game = {
-    id: string
-    map: string[][]
+    map: string[],
 }
 
 export type GameRequest = {

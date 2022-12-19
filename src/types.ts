@@ -52,6 +52,10 @@ export type RegistryPlayerInfo = {
     password: string
 }
 
+export type GameMapPayload = {
+    map: string[]
+}
+
 // Union of the different types of stream used in kafka
 export type UnionStream = PlayerStream | EngineStream
 
