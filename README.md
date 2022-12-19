@@ -13,10 +13,13 @@
 *TO-DO:*
 - Arreglar registry con Sockets
 - Manejar servidores caidos (comprobar en todos los servicios que pasa cuando otra componente este caido y capturar los errores para mostrar los mensajes)
-- Auditoría de eventos en el Registry
 - Cifrado de los datos entre Engine y los Jugadores
 - Autenticación segura entre los Jugadores y el Registry: cifrado del canal y protección segura de las contraseñas. API_REST con Firebase: https://firebase.google.com/docs/reference/rest/database 
 - Frontend
+
+*In progress:*
+- Auditoría de eventos en el Registry -> Metodos creados, registrar eventos durante ejecucion
+- Engine API -> Metodos creados, crear y actualizar datos durante ejecucion
 
 *Notas:*
 - En el front solo se ve el estado de la partida, los jugadores se mueven como antes

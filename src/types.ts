@@ -52,10 +52,6 @@ export type RegistryPlayerInfo = {
     password: string
 }
 
-export type GameMapPayload = {
-    map: string[]
-}
-
 // Union of the different types of stream used in kafka
 export type UnionStream = PlayerStream | EngineStream
 
@@ -76,4 +72,17 @@ export type EngineStream = {
     map?: string[][] // updated map
     error?: string // error explained
     position?: Coordinate // there are some cases that the player wont move, this is the last position that the player had
+}
+
+// Payloads API
+export type GameMapPayload = {
+    map: string[]
+}
+
+export type RegistryEventPayload = {
+    timestamp: string,
+    aliasProducer: string,
+    ipProducer: string,
+    event: string,
+    description: string,
 }
