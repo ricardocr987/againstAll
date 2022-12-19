@@ -1,10 +1,21 @@
+*Test api:*
+1. vete a src/utils/api.ts, al final ves codigo comentado
+2. descomenta esta linea: console.log(await createPlayer({ alias: 'riki', password: '123' }))
+3. npm run build
+4. node ./dist/utils/api.js
+5. avisame cuando lo hayas hecho, tendria que salir un mensaje parecido a este:
+{
+  status: 'success',
+  message: 'player created successfully',
+  data: { id: 'DI97m4vhomFQfXwjpDLP', alias: 'riki', password: '123' }
+}
+
 *TO-DO:*
 - Arreglar registry con Sockets
 - Manejar servidores caidos (comprobar en todos los servicios que pasa cuando otra componente este caido y capturar los errores para mostrar los mensajes)
 - Auditoría de eventos en el Registry
 - Cifrado de los datos entre Engine y los Jugadores
 - Autenticación segura entre los Jugadores y el Registry: cifrado del canal y protección segura de las contraseñas. API_REST con Firebase: https://firebase.google.com/docs/reference/rest/database 
-- API_Engine con Firebase
 - Frontend
 
 *Notas:*
