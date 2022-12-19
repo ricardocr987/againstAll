@@ -74,7 +74,7 @@ export class Player extends CommonPlayer {
                 // the authentication (login) has to be done by engine, so the registry is only used to create/edit an account
                 // we send to the server the event, alias and password in both cases
                 if(fromEngine){
-                    socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.playerInfo.alias}:${this.password}`)
+                    socket.write(`${PlayerEvents.CHECK_PLAYER}:${this.playerInfo.alias}:${this.password}`)
                 }
                 else {
                     socket.write(`${PlayerEvents.SIGN_UP}:${this.playerInfo.alias}:${this.password}`)
@@ -82,6 +82,9 @@ export class Player extends CommonPlayer {
 
                 socket.on('data', (data) => { // here is entered when the player receives information from registry
                     if(data.toString().includes('OK')){ // if the message includes an OK it shows the menu, otherwise it is because an error has occurred and has to be handled
+                        // IF DATA.TOSTRING.INCLUDES(CHECK_PLAYER_OK)
+
+                        // IF DATA.TOSTRING.INCLUDES(EDIT_PLAYER_OK)
                         this.showMenu()
                         switch(this.answer){
                             case '1':
