@@ -83,8 +83,8 @@ export default apiController
 
 //console.log(await apiController.createGame({ map: ['riki', 'riki', 'M'] }))
 //console.log(await apiController.getAllGames())
-//console.log(await apiController.updateGame('3PwNJbKQsOjyAdJ4QK4V',{ map: ['riki', 'riki', ' '] }))
-//console.log(await deleteGame('3PwNJbKQsOjyAdJ4QK4V'))
+//console.log(await apiController.updateGame('1BW0nP3qF4fNiMQwFGmG',{ map: ['riki', 'riki', ' '] }))
+//console.log(await apiController.deleteGame('1BW0nP3qF4fNiMQwFGmG'))
 
 /*console.log(await apiController.createRegistryEvent({
     timestamp: Date.now().toString(),
@@ -94,11 +94,11 @@ export default apiController
     description: 'login',
 }))
 console.log(await apiController.getAllRegistryEvents())*/
-console.log(await apiController.updateRegistryEvent('Jr1t7ZE78E4Dngdwy6hk',{
+/*console.log(await apiController.updateRegistryEvent('PwaxtxU4PFXyNwuRjmTM',{
     timestamp: Date.now().toString(),
     aliasProducer: 'riki',
     ipProducer: '192.0.0.2',
     event: 'login',
     description: 'login',
 }))
-console.log(await apiController.deleteRegistryEvent('Jr1t7ZE78E4Dngdwy6hk'))
+console.log(await apiController.deleteRegistryEvent('PwaxtxU4PFXyNwuRjmTM'))*/
