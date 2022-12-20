@@ -42,7 +42,7 @@ const createGame = async (req: GameRequest, res: Response) => {
         const currentData = (await game.get()).data() || {}
         
         const gameObject = {
-            id: game.id,
+            id: gameId,
             map: map || currentData.map,
         }
     

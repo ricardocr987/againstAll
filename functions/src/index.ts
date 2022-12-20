@@ -7,6 +7,7 @@ import { createGame, getAllActiveGames, updateGame, deleteGame } from './control
 import { createRegistryEvent, getAllRegistryEvents, updateRegistryEvent, deleteRegistryEvent } from './controllers/registryEvent'
 
 const app = express()
+
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(cors({ origin: true }))

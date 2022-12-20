@@ -55,13 +55,12 @@ const createRegistryEvent = async (req: RegistryEventRequest, res: Response) => 
     } = req.body
     const { registryEventId } = req.params
 
-  
     try {
         const registryEvent = db.collection(registryEventCollection).doc(registryEventId)
         const currentData = (await registryEvent.get()).data() || {}
         
         const registryEventObject = {
-            id: registryEvent.id,
+            id: registryEventId,
             timestamp: timestamp || currentData.timestamp,
             aliasProducer: aliasProducer || currentData.aliasProducer,
             ipProducer: ipProducer || currentData.ipProducer,
@@ -71,8 +70,8 @@ const createRegistryEvent = async (req: RegistryEventRequest, res: Response) => 
     
         await registryEvent.set(registryEventObject).catch(error => {
             return res.status(400).json({
-            status: 'error',
-            message: error.message
+                status: 'error',
+                message: error.message
             })
         })
     

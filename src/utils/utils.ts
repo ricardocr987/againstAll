@@ -28,6 +28,6 @@ export function delay(ms: number) {
 }
 
 export const intialAnswerSet: Set<string> = new Set<string>(['y', 'n'])
-export const menuAnswerSet: Set<string> = new Set<string>(['1', '2', '3'])
+export const menuAnswerSet: Set<string> = new Set<string>(['1', '2', '3', '4'])
 export const movementSet: Set<string> = new Set<string>(['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE'])
 export const movementsArray: string[] = ['N', 'S', 'W', 'E', 'NW', 'NE', 'SW', 'SE']

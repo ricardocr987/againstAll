@@ -1,9 +1,10 @@
 import { PlayerEvents, RegistryEvents, RegistryPlayerInfo } from './types.js'
 import { config } from './utils/config.js'
 import { paths } from './utils/utils.js'
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { format, Options } from 'prettier'
 import { Server, Socket } from 'net'
+import apiControler from './utils/apiController.js'
 
 const options: Options = {
     semi: false,
@@ -20,7 +21,7 @@ export class Registry {
     public port: number
     public io: Server
     // La idea es utilizar dos mapas:
-    public registeredPlayers: Record<string, RegistryPlayerInfo> = this.getPlayers() // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor info sobre el player
+    public registeredPlayers: Record<string, RegistryPlayerInfo> = {} // un mapa para almacenar la informacion del jugador siendo la key el alias y el valor info sobre el player
     public playerSockets: Record<string, Socket> = {} // un mapa para almacenar la informacion del socket siendo la key el alias del jugador y el valor la instancia socket, solo funciona para cerrar el server cuando no hay players
 
     constructor(port: number) {
@@ -28,81 +29,129 @@ export class Registry {
         this.io = new Server()
     }
 
-    public getPlayers(): Record<string, RegistryPlayerInfo> { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
-        if (!existsSync(paths.dataFile('registry')) || !existsSync(paths.dataDir)) return {}
-
-        const registeredPlayers: Record<string, RegistryPlayerInfo> = {}
-        const players: Record<string, RegistryPlayerInfo> = JSON.parse(readFileSync(paths.dataFile('registry'), 'utf8')) // leo fichero
-        for(const player of Object.values(players)){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
-            registeredPlayers[player.alias] = player
+    public async getPlayers() { // cuando se crea un objeto lee el json para cargar los datos de antiguas ejecuciones
+        const players = await apiControler.getAllPlayers()
+        console.log(`Received ${players.length} registered players from the API`)
+        for(const player of players){ // recorro todos los jugadores que habian sido almacenados en el fichero y los vuelvo a guardar en el map
+            this.registeredPlayers[player.alias] = player
         }
 
-        return registeredPlayers
-    }
-
-    public registerPlayer(player: RegistryPlayerInfo, socket: Socket) { // creo perfil de player
-        if(this.registeredPlayers[player.alias]) throw new Error('There is already a player with the same alias')
-
-        socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
-
-        this.registeredPlayers[player.alias] = player // registeredPlayers es una variable clave valor, la clave es el alias del jugador, y el valor es toda la informacion del jugador
-        // esta linea almacena la informacion del nuevo jugador en el mapa
         if(!existsSync(paths.dataDir)) // si no existe la carpeta data ...
             mkdirSync(paths.dataDir) // ... la crea
-
+        // esta linea almacena la informacion del nuevo jugador en el mapa
         writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
     }
 
-    public editPlayer(player: RegistryPlayerInfo, socket: Socket) {
-        if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
+    public async registerPlayer(alias: string, password: string, socket: Socket) { // creo perfil de player
+        if(this.registeredPlayers[alias]) throw new Error('There is already a player with the same alias')
 
-        socket.write(RegistryEvents.EDIT_PROFILE_OK)
+        const apiResponse = await apiControler.createPlayer({ alias: alias, password: password }) // tambien almaceno los jugadores en la base de datos de firebase llamando a la api
+        console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
 
-        this.registeredPlayers[player.alias] = player // simplemente sobreescribo los datos del player
-        if(!existsSync(paths.dataDir))
-            mkdirSync(paths.dataDir)
-
-        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) 
+        this.registeredPlayers[alias] = apiResponse.data // registeredPlayers es una variable clave valor, la clave es el alias del jugador, y el valor es toda la informacion del jugador
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options)) // sobreescribo todo el fichero pero incluyendo al nuevo
+        console.log(`Saved player info in a json file and in a record with all the other players`)
+        
+        socket.write(RegistryEvents.SIGN_UP_OK) // como no ha lanzado el error el servidor envia al player un mensaje diciendo que el registro ha sido exitoso
+        console.log(`Sent this message by socket communication: ${RegistryEvents.SIGN_UP_OK}`)
     }
 
-    public Start() {
+    public async editPlayer(player: RegistryPlayerInfo, socket: Socket) {
+        if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
+
+        const apiResponse = await apiControler.updatePlayer(player)
+        console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
+
+        this.registeredPlayers[player.alias] = apiResponse.data // simplemente sobreescribo los datos del player
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options))
+        console.log(`Updated player info in a json file and in a record with all the other players`)
+        
+        socket.write(RegistryEvents.EDIT_PROFILE_OK)
+        console.log(`Sent this message by socket communication: ${RegistryEvents.EDIT_PROFILE_OK}`)
+    }
+
+    public async deletePlayer(player: RegistryPlayerInfo, socket: Socket) {
+        if(!this.registeredPlayers[player.alias]) throw new Error('This alias does not exist on the database')
+
+        const apiResponse = await apiControler.deletePlayer(player.id)
+        console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
+
+        delete this.registeredPlayers[player.alias]
+        writeFileSync(paths.dataFile('registry'), format(JSON.stringify(this.registeredPlayers).trim(), options))
+        console.log(`Deleted player info in a json file and in a record with all the other players`)
+       
+        socket.write(RegistryEvents.DELETE_PROFILE_OK)
+        console.log(`Sent this message by socket communication: ${RegistryEvents.DELETE_PROFILE_OK}`)
+    }
+
+    public async start() {
+        await this.getPlayers()
         this.io.on('connection', (socket: Socket) => {
             const remoteSocket = `${socket.remoteAddress}:${socket.remotePort}` // IP + Puerto del client
             console.log(`New connection from ${remoteSocket}`)
             socket.setEncoding('utf-8') // cada vez que recibe un mensaje automaticamente decodifica el mensaje, convirtiendolo de bytes a un string entendible
 
-            socket.on('data', (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que hay que convertir en string .toString()
+            socket.on('data', async (message) => { // cuando envias un mensaje desde el cliente, (socket.write) -> recibes un Buffer (bytes) que hay que hay que convertir en string .toString()
                 const [event, alias, password] = message.toString().split(':') // creamos un vector de la respuesta del cliente con las tres variables
 
                 if (!this.playerSockets[alias]) this.playerSockets[alias] = socket
                 console.log(`Received this message from the player: ${event}:${alias}:${password}`)
 
-                const playerInfo: RegistryPlayerInfo = {
-                    alias,
-                    password
-                }
-
-
                 switch(event){
                     case PlayerEvents.SIGN_UP:
                         try{
-                            this.registerPlayer(playerInfo, socket)
+                            await this.registerPlayer(alias, password, socket)
+                            const registerEvent = await apiControler.createRegistryEvent({
+                                timestamp: Date.now().toString(),
+                                aliasProducer: alias,
+                                ipProducer: socket.remoteAddress || 'localhost',
+                                event: PlayerEvents.SIGN_UP,
+                                description: `Player ${alias} has registered`,
+                            })
+                            console.log(`API Response status: ${registerEvent.status}, message: ${registerEvent.message}`)
+                            console.log(`Event data:\n ${JSON.stringify(registerEvent.data)}`)
                         } catch(e){
                             socket.write(`${RegistryEvents.SIGN_UP_ERROR}:${e}`)
                         }
                         break
                     case PlayerEvents.EDIT_PROFILE:
                         try{
-                            this.editPlayer(playerInfo, socket)
+                            this.registeredPlayers[alias].alias = alias
+                            this.registeredPlayers[alias].password = password
+                            await this.editPlayer(this.registeredPlayers[alias], socket)
+                            const registerEvent = await apiControler.createRegistryEvent({
+                                timestamp: Date.now().toString(),
+                                aliasProducer: alias,
+                                ipProducer: socket.remoteAddress || 'localhost',
+                                event: PlayerEvents.EDIT_PROFILE,
+                                description: `Player ${alias} has edited his profile`,
+                            })
+                            console.log(`API Response status: ${registerEvent.status}, message: ${registerEvent.message}`)
+                            console.log(`Event data:\n ${JSON.stringify(registerEvent.data)}`)
                         } catch(e){
                             socket.write(`${RegistryEvents.EDIT_PROFILE_ERROR}:${e}`)
                         }
                         break
-                    case PlayerEvents.END: // si el client manda el mensaje END acaba conexion
+                    case PlayerEvents.DELETE_PROFILE:
+                        try{
+                            await this.deletePlayer(this.registeredPlayers[alias], socket)
+                            const registerEvent = await apiControler.createRegistryEvent({
+                                timestamp: Date.now().toString(),
+                                aliasProducer: alias,
+                                ipProducer: socket.remoteAddress || 'localhost',
+                                event: PlayerEvents.DELETE_PROFILE,
+                                description: `Player ${alias} has deleted his profile`,
+                            })
+                            console.log(`API Response status: ${registerEvent.status}, message: ${registerEvent.message}`)
+                            console.log(`Event data:\n ${JSON.stringify(registerEvent.data)}`)
+                        } catch(e){
+                            socket.write(`${RegistryEvents.DELETE_PROFILE_ERROR}:${e}`)
+                        }
+                        break
+                    default: // si el client manda el mensaje END acaba conexion
                         console.log('SOCKET DISCONNECTED: ' + remoteSocket)
                         if (this.playerSockets[alias]) delete this.playerSockets[alias]
                         socket.end()
-                        // if (Object.values(this.playerSockets).length == 0) process.exit(0) // mata proceso en caso de que no haya conexiones
                         break
                 }           
             }) 
@@ -112,9 +161,10 @@ export class Registry {
     }
 }
 
-function main() {
+async function main() {
     const REGISTRY_SERVER_PORT = Number(config.REGISTRY_SERVER_PORT) || 6580
-    new Registry(REGISTRY_SERVER_PORT).Start()
+    const registry = new Registry(REGISTRY_SERVER_PORT)
+    await registry.start()
 }
 
-main()
+await main()

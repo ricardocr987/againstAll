@@ -98,8 +98,9 @@ export class EngineServer {
 
                 // stores player info
                 const registryPlayerInfo: RegistryPlayerInfo = {
-                    alias,
-                    password
+                    id: '',
+                    alias: alias,
+                    password: password
                 }
 
                 // depending of the message event from the player, will try to check the credentials to log in or end the connection

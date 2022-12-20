@@ -80,14 +80,15 @@ const updatePlayer = async (req: PlayerRequest, res: Response) => {
         const currentData = (await player.get()).data() || {}
         
         const playerObject = {
+            id: playerId,
             alias: alias || currentData.alias,
             password: password || currentData.password,
         }
     
         await player.set(playerObject).catch(error => {
             return res.status(400).json({
-            status: 'error',
-            message: error.message
+                status: 'error',
+                message: error.message
             })
         })
     

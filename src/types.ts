@@ -3,6 +3,7 @@ export enum PlayerEvents {
     SIGN_IN = 'SIGN_IN',
     SIGN_UP = 'SIGN_UP',
     EDIT_PROFILE = 'EDIT_PROFILE',
+    DELETE_PROFILE = 'DELETE_PROFILE',
     END = 'END',
     // Kafka event
     INITIAL_MESSAGE = 'INITIAL_MESSAGE',
@@ -13,9 +14,12 @@ export enum RegistryEvents {
     SIGN_IN_OK = 'SIGN_IN_OK',
     SIGN_UP_OK = 'SIGN_UP_OK',
     EDIT_PROFILE_OK = 'EDIT_PROFILE_OK',
-    EDIT_PROFILE_ERROR = 'EDIT_PROFILE_ERROR',
+    DELETE_PROFILE_OK = 'DELETE_PROFILE_OK',
+
     SIGN_IN_ERROR = 'SIGN_IN_ERROR',
     SIGN_UP_ERROR = 'SIGN_UP_ERROR',
+    EDIT_PROFILE_ERROR = 'EDIT_PROFILE_ERROR',
+    DELETE_PROFILE_ERROR = 'DELETE_PROFILE_ERROR',
 }
 
 export enum EngineEvents {
@@ -48,6 +52,7 @@ export type PlayerInfo = {
 }
 
 export type RegistryPlayerInfo = {
+    id: string
     alias: string
     password: string
 }
@@ -74,7 +79,13 @@ export type EngineStream = {
     position?: Coordinate // there are some cases that the player wont move, this is the last position that the player had
 }
 
+
 // Payloads API
+export type RegistryPlayerPayload = {
+    alias: string
+    password: string
+}
+
 export type GameMapPayload = {
     map: string[]
 }
@@ -85,4 +96,16 @@ export type RegistryEventPayload = {
     ipProducer: string,
     event: string,
     description: string,
+}
+
+export type RegistryPlayerAPIResponse = {
+    status: string,
+    message: string,
+    data: RegistryPlayerInfo
+}
+
+export type RegistryEventResponse = {
+    status: string,
+    message: string,
+    data: RegistryEventPayload & { id: string }
 }

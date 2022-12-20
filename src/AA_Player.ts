@@ -1,15 +1,14 @@
-import { PlayerEvents, PlayerStream } from './types.js'
+import { PlayerEvents, PlayerStream, RegistryEvents } from './types.js'
 import { intialAnswerSet, menuAnswerSet, movementSet } from './utils/utils.js'
 import { KafkaUtil } from './utils/kafka.js'
 import { config } from './utils/config.js'
 import { CommonPlayer } from './CommonPlayer.js'
 import { Socket } from 'net'
-import promptSync, { Prompt } from 'prompt-sync'
+import prompts from 'prompts'
 import { v4 as uuid } from 'uuid'
 
 export class Player extends CommonPlayer {
     // Used to manage the user answers
-    public prompt: Prompt = promptSync() // use to register the user inputs
     public answer: string = ''
     public password: string = ''
 
@@ -29,20 +28,33 @@ export class Player extends CommonPlayer {
 
     public async initUser(){
         while(!intialAnswerSet.has(this.answer)) {
-            console.log('Are you already registered?: [y/n]')
-            this.answer = this.prompt('')
+            const response = await prompts({
+                type: 'text',
+                name: 'char',
+                message: `Are you already registered?: [y/n]`,
+            })
+            this.answer = response.char
+            if (!intialAnswerSet.has(this.answer)) console.log('Please introduce y or n')
         }
-        this.askUserInfo()
+        await this.askUserInfo()
         if(this.answer === 'n') this.startConnectionRegistry() // if he isnt registered, you are connected to the registry
         if(this.answer === 'y') this.startConnectionEngine() // if he is, he is connected to the registry
     }
 
     // alias & password ask
-    public askUserInfo(){ 
-        console.log('Introduce your username: ')
-        this.playerInfo.alias = this.prompt('')
-        console.log('Introduce your password: ')
-        this.password = this.prompt('')
+    public async askUserInfo(){ 
+        const aliasResponse = await prompts({
+            type: 'text',
+            name: 'alias',
+            message: `Introduce your username: `,
+        })
+        const pswResponse = await prompts({
+            type: 'text',
+            name: 'password',
+            message: `Introduce your password: `,
+        })
+        this.playerInfo.alias = aliasResponse.alias
+        this.password = pswResponse.password
     }
 
     // clean of some properties filled before
@@ -52,11 +64,15 @@ export class Player extends CommonPlayer {
         this.answer = ''
     }
 
-    public showMenu() {
+    public async showMenu() {
         while(!menuAnswerSet.has(this.answer)){
-            console.log('Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END')
-            this.answer = this.prompt('')
-            if (!menuAnswerSet.has(this.answer)) console.log('Please introduce 1,2 or 3')
+            const response = await prompts(  {
+                type: 'text',
+                name: 'char',
+                message: `Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END \n 4. Delete Profile`,
+            })
+            this.answer = response.char
+            if (!menuAnswerSet.has(this.answer)) console.log('Please introduce 1,2,3 or 4')
         }
     }
 
@@ -80,17 +96,32 @@ export class Player extends CommonPlayer {
                     socket.write(`${PlayerEvents.SIGN_UP}:${this.playerInfo.alias}:${this.password}`)
                 }
 
-                socket.on('data', (data) => { // here is entered when the player receives information from registry
+                socket.on('data', async (data) => { // here is entered when the player receives information from registry
+                    console.log(data)
                     if(data.toString().includes('OK')){ // if the message includes an OK it shows the menu, otherwise it is because an error has occurred and has to be handled
-                        this.showMenu()
-                        switch(this.answer){
-                            case '1':
-                                this.askUserInfo()
-                                socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.playerInfo.alias}:${this.password}`)
-                                this.showMenu() // is needed because if not will enter in a infite loop, is needed to change this.answer variable
-                                break
-                            default: // if he wants to start a game, he will be disconnected from the registry and connected to the engine
-                                this.endSocket(socket)
+                        if(data.toString() === RegistryEvents.DELETE_PROFILE_OK) {
+                            this.endSocket(socket)
+                            process.exit(0)
+                        }
+                        if(data.toString() === RegistryEvents.EDIT_PROFILE_OK) {
+                            await this.showMenu()
+                            this.endSocket(socket)
+                        }
+                        else{
+                            await this.showMenu()
+                            switch(this.answer){
+                                case '1':
+                                    await this.askUserInfo()
+                                    socket.write(`${PlayerEvents.EDIT_PROFILE}:${this.playerInfo.alias}:${this.password}`)
+                                    this.answer = ''
+                                    break
+                                case '4':
+                                    socket.write(`${PlayerEvents.DELETE_PROFILE}:${this.playerInfo.alias}:${this.password}`)
+                                    break
+                                default:
+                                    this.endSocket(socket)
+                                    break
+                            }
                         }
                     }
                     else { // handling of the error
@@ -111,11 +142,19 @@ export class Player extends CommonPlayer {
                         // Client sends END, Server confirms completion, Client kills process, here we kill the client process
                         console.log('Disconnected from Registry')
                         process.exit(0) // we kill the client process
+                    case '4':  // if it has arrived here it is because the player wants to close the connection
+                        // Client sends END, Server confirms completion, Client kills process, here we kill the client process
+                        console.log('Disconnected from Registry')
+                        process.exit(0) // we kill the client process
                     default: // if it has arrived here it is because an error has occurred from the server, we restart the connection
                         this.clearInfo()
                         this.initUser()
                 }
-            }) 
+            })
+
+            socket.on('error', () => {
+                console.log('Error: Could not connect to Registry server')
+            })   
         }
         catch(e) {
             console.log('Error: Could not connect to Registry server')
@@ -133,9 +172,9 @@ export class Player extends CommonPlayer {
                 console.log(`Connected to Engine`) 
                 socket.write(`${PlayerEvents.SIGN_IN}:${this.playerInfo.alias}:${this.password}`)
             
-                socket.on('data', (data) => {
+                socket.on('data', async (data) => {
                     if(data.toString().includes('OK')){
-                        this.showMenu()
+                        await this.showMenu()
                         this.endSocket(socket) // in all the menu posibilities, will end the socket connection
                     }
                     else {
@@ -143,8 +182,12 @@ export class Player extends CommonPlayer {
                         console.log(`[${event}]:${errorMessage}`)
 
                         if (errorMessage == 'NO_SPACE') {
-                            console.log('Introduce a PORT to join another Engine instance:')
-                            this.ENGINE_PORT = Number(this.prompt(''))
+                            const response = await prompts(  {
+                                type: 'text',
+                                name: 'port',
+                                message: `Introduce a PORT to join another Engine instance:`,
+                            })
+                            this.ENGINE_PORT = Number(response.port)
                             this.answer = 'CONNECT_OTHER_ENGINE'
                         }
                         this.endSocket(socket)
@@ -172,6 +215,10 @@ export class Player extends CommonPlayer {
                         this.initUser()
                 }
             })
+
+            socket.on('error', () => {
+                console.log('Error: Could not connect to Engine server')
+            })   
         }
         catch(e) {
             console.log('Error: Could not connect to Engine server')
@@ -186,8 +233,12 @@ export class Player extends CommonPlayer {
 
     public async newMomevent(kafka: KafkaUtil) {
         while(!movementSet.has(this.answer)){
-            console.log('Introduce a movement [N, S, W, E, NW, NE, SW, SE]: ')
-            this.answer = this.prompt('')
+            const response = await prompts({
+                type: 'text',
+                name: 'mov',
+                message: `Introduce a movement [N, S, W, E, NW, NE, SW, SE]: `,
+            })
+            this.answer = response.mov
             if (!movementSet.has(this.answer)) console.log('Please introduce N, S, W, E, NW, NE, SW or SE')
         }
 
