@@ -3,6 +3,7 @@ import { GameBoard } from './board.js'
 import { paths } from './utils/utils.js'
 import { KafkaUtil } from './utils/kafka.js'
 import { config } from './utils/config.js'
+import apiController from './utils/apiController.js'
 import { Server, Socket } from 'net'
 import { existsSync, readFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
@@ -29,6 +30,7 @@ export class EngineServer {
     public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
     public messagesRead: string[] = [] // used as a security check to only read each message only once
 
+    public gameIdApi: string = ''
     constructor(        
         public SERVER_PORT: number,
 
@@ -61,10 +63,15 @@ export class EngineServer {
         this.authenticatedPlayers++
     }
 
-    public initilizePlayerInfo(playerInfo: PlayerInfo) {
+    public async initilizePlayerInfo(playerInfo: PlayerInfo) {
         console.log(playerInfo)
         this.connectedPlayers[playerInfo.alias] = playerInfo
         this.gameBoard.modifyBoard(playerInfo.alias, playerInfo.position)
+
+        const map = this.gameBoard.matrixToVector()
+        const apiResponse = await apiController.updateGame(this.gameIdApi, { map })
+        console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
+
     }
 
     public getPlayersLevel(cityTemperature: number, actualPlayer: PlayerInfo, attackedPlayer: PlayerInfo): number[] {
@@ -139,7 +146,13 @@ export class EngineServer {
         await kafka.consumer.connect()
         await kafka.consumer.subscribe({ topic: 'playerMessages' })
 
-        if (!this.gameBoard.filledBoard) this.gameBoard.fillBoard()
+        if (!this.gameBoard.filledBoard) {
+            this.gameBoard.fillBoard()
+            const map = this.gameBoard.matrixToVector()
+            const apiResponse = await apiController.createGame({map})
+            console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
+            this.gameIdApi = apiResponse.data.id
+        }
 
         await kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
             id: uuid(),
@@ -188,7 +201,7 @@ export class EngineServer {
     public async processMessage(message: PlayerStream, kafka: KafkaUtil){
         switch (message.event){
             case PlayerEvents.INITIAL_MESSAGE: 
-                this.initilizePlayerInfo(message.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
+                await this.initilizePlayerInfo(message.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
                 break
 
             case PlayerEvents.NEW_POSITION:
@@ -259,6 +272,9 @@ export class EngineServer {
             default: // player or npc
                 if (this.connectedPlayers[newPositionContent]) await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
         }
+        const map = this.gameBoard.matrixToVector()
+        const apiResponse = await apiController.updateGame(this.gameIdApi, {map})
+        console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
     }
 
     // manages the process for deciding who wins the match, also handles the sending of the correspondings messages

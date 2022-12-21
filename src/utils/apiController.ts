@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { RegistryPlayerPayload, GameMapPayload, RegistryEventPayload, RegistryPlayerAPIResponse, RegistryPlayerInfo, RegistryEventResponse } from '../types'
+import { RegistryPlayerPayload, GameMapPayload, RegistryEventPayload, RegistryPlayerAPIResponse, RegistryPlayerInfo, RegistryEventResponse, GameMapResponse } from '../types'
 
 class APIController {
     constructor(){}
@@ -27,24 +27,24 @@ class APIController {
     
     async createGame(
         payload: GameMapPayload,
-    ): Promise<string> {
+    ): Promise<GameMapResponse> {
         return await axios.post(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/games`, payload).then(res => res.data)
     }
     
-    async getAllGames(): Promise<GameMapPayload> {
+    async getAllGames(): Promise<GameMapPayload[]> {
         return await axios.get(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/games`).then(res => res.data)
     }
     
     async updateGame(
         id: string,
         payload: GameMapPayload,
-    ): Promise<string> {
+    ): Promise<GameMapResponse> {
         return await axios.put(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/games/${id}`, payload).then(res => res.data)
     }
     
     async deleteGame(
         id: string,
-    ): Promise<string> {
+    ): Promise<GameMapResponse> {
         return await axios.delete(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/games/${id}`).then(res => res.data)
     }
     
@@ -54,20 +54,20 @@ class APIController {
         return await axios.post(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/registryEvents`, payload).then(res => res.data)
     }
     
-    async getAllRegistryEvents(): Promise<RegistryEventPayload> {
+    async getAllRegistryEvents(): Promise<RegistryEventPayload[]> {
         return await axios.get(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/registryEvents`).then(res => res.data)
     }
     
     async updateRegistryEvent(
         id: string,
         payload: RegistryEventPayload,
-    ): Promise<string> {
+    ): Promise<RegistryEventResponse> {
         return await axios.put(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/registryEvents/${id}`, payload).then(res => res.data)
     }
     
     async deleteRegistryEvent(
         id: string,
-    ): Promise<string> {
+    ): Promise<RegistryEventResponse> {
         return await axios.delete(`https://us-central1-againstall-6f76d.cloudfunctions.net/app/registryEvents/${id}`).then(res => res.data)
     }
 }

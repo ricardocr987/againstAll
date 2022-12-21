@@ -109,3 +109,9 @@ export type RegistryEventResponse = {
     message: string,
     data: RegistryEventPayload & { id: string }
 }
+
+export type GameMapResponse = {
+    status: string,
+    message: string,
+    data: GameMapPayload & { id: string }
+}

@@ -69,7 +69,7 @@ export class Player extends CommonPlayer {
             const response = await prompts(  {
                 type: 'text',
                 name: 'char',
-                message: `Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END \n 4. Delete Profile`,
+                message: `Menu:\n 1. Edit Profile \n 2. Join to a game \n 3. END \n 4. Delete Profile \n`,
             })
             this.answer = response.char
             if (!menuAnswerSet.has(this.answer)) console.log('Please introduce 1,2,3 or 4')

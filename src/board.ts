@@ -99,4 +99,12 @@ export class GameBoard {
     public printBoard() {
         console.table(this.board)
     }
+
+    public matrixToVector(): string[] {
+        const mergedArr: string[] = []
+        this.board.map((array) => {
+            array.map((coord) => mergedArr.push(coord))
+        })
+        return mergedArr
+    }
 }
