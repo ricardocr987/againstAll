@@ -5,9 +5,6 @@
 - Autenticación segura entre los Jugadores y el Registry: cifrado del canal y protección segura de las contraseñas. API_REST con Firebase: https://firebase.google.com/docs/reference/rest/database 
 - Frontend
 
-*In progress:*
-- Engine API -> Metodos creados, crear y actualizar datos durante ejecucion
-
 *Notas:*
 - En el front solo se ve el estado de la partida, los jugadores se mueven como antes
 - Configurar certificado del servidor https (front-end)
