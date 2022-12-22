@@ -13,14 +13,13 @@
 - npm (8.15.0)
 - Docker (20.10.17)
 
-*Pasos para desplegar:*
+*Steps to deploy:*
 
-1. docker-compose up
-2. ./create-topics.sh 
-3. Incluir IP del ordenador en el archivo config en el broker, es donde esta lanzado kafka
-4. Modificar env.default con los puertos y hosts
-5. npm run start
-6. npm run start:registry
-7. npm run start:weather
-8. npm run start:engine
-9. npm run start:player
+1. docker-compose up -> to deploy kafka
+2. ./create-topics.sh  -> para crear los topics de la queue de kafka
+3. modificar los puertos y las IPs desde el archivo env.default -> crea variables de entorno
+5. npm run start -> instala dependencia y transpila el codigo
+6. npm run start:registry -> ejecuta el codigo transpilado de registry
+7. npm run start:engine
+8. npm run start:player
+

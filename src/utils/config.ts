@@ -1,6 +1,6 @@
 // A_VARIABLE=value npm run start:engine -> config.A_VARIABLE in code -> posible forma de entregar por terminar puertos
 import dotenv from 'dotenv-defaults'
-
+//import { ca, key, cert } from './keys/index.js'
 dotenv.config()
 export const config = process.env
 
@@ -20,4 +20,12 @@ export const kafkaConfig = {
     connectionTimeout: 20000, // time in milliseconds to wait for a successful connection
     requestTimeout: 20000, // '' for a request
     sessionTimeout: 20000,
+    /*ssl:true,
+    sslOptions: {
+      rejectUnauthorized: false,
+      ca: ca,
+      cert: cert,
+      key: key,
+      passphrase: "ricardo"
+    }*/
 }
