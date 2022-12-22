@@ -15,9 +15,11 @@
 
 *Steps to deploy:*
 
+0. Open docker app
 1. docker-compose up -> to deploy kafka
 2. ./create-topics.sh  -> para crear los topics de la queue de kafka
 3. modificar los puertos y las IPs desde el archivo env.default -> crea variables de entorno
+(ipconfig red: adaptador ethernet ipv4), modificar 
 5. npm run start -> instala dependencia y transpila el codigo
 6. npm run start:registry -> ejecuta el codigo transpilado de registry
 7. npm run start:engine

@@ -27,6 +27,7 @@ export class EngineServer {
     
     public io: Server = new Server() // server instance
 
+    public engineId = uuid()
     public authenticatedPlayers = 0
     public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
     public messagesRead: string[] = [] // used as a security check to only read each message only once
