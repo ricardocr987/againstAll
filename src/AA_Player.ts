@@ -36,7 +36,6 @@ export class Player extends CommonPlayer {
             this.answer = response.char
             if (!intialAnswerSet.has(this.answer)) console.log('Please introduce y or n')
         }
-        await this.askUserInfo()
         if(this.answer === 'n') {
             const response = await prompts({
                 type: 'text',
@@ -44,10 +43,11 @@ export class Player extends CommonPlayer {
                 message: `Do you want to join a game as a guest?: [y/n]`,
             })
             if(response.char == 'y') {
-                this.startConnectionRegistry() // if he isnt registered, you are connected to the registry
+                this.joinGame(true) // if he is, he is connected to the registry
             }
             else {
-                this.joinGame(true) // if he is, he is connected to the registry
+                await this.askUserInfo()
+                this.startConnectionRegistry() // if he isnt registered, you are connected to the registry
             }
         } 
         if(this.answer === 'y') this.startConnectionEngine() // if he is, he is connected to the registry
@@ -259,7 +259,6 @@ export class Player extends CommonPlayer {
 
         const event: PlayerStream = {
             id: uuid(),
-            engineId: this.engineId,
             event: PlayerEvents.NEW_POSITION,
             playerInfo: this.playerInfo
         }

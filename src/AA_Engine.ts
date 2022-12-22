@@ -27,12 +27,12 @@ export class EngineServer {
     
     public io: Server = new Server() // server instance
 
-    public engineId = uuid()
     public authenticatedPlayers = 0
     public timestamp: number = Date.now() // used as a security check to only read messages after this timestamp
     public messagesRead: string[] = [] // used as a security check to only read each message only once
 
     public gameIdApi: string = ''
+
     constructor(        
         public SERVER_PORT: number,
 
@@ -158,7 +158,6 @@ export class EngineServer {
 
         await kafka.sendRecord({ // and send to all players a record notifing them that the game has just started
             id: uuid(),
-            engineId: this.engineId,
             event: EngineEvents.GAME_STARTED,
             messageToAll: true,
             map: this.gameBoard.board
@@ -177,11 +176,32 @@ export class EngineServer {
                                     await this.initilizePlayerInfo(playerMessage.playerInfo) // if the player hasnt been registered his ingame info, it is initilized        
                                 }
                                 else {
-                                    if (playerMessage.engineId === this.engineId) await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
+                                    await this.processMessage(playerMessage, kafka) // process the received message, sends answers and updates map
                                 }
                                 this.messagesRead.push(playerMessage.id)
                             }
                         }
+                    }
+                    const elapsedTime = Date.now() - this.timestamp
+                    if (elapsedTime >= 50000 && Object.values(this.connectedPlayers).length === 1) {
+                        this.gameFinished = true
+                        await kafka.sendRecord({
+                            id: uuid(),
+                            event: EngineEvents.WINNER,
+                            messageToAll: true,
+                            playerAlias: Object.keys(this.connectedPlayers)[0],
+                            map: this.gameBoard.board
+                        })
+                        await apiController.deleteGame(this.gameIdApi)
+                    }
+                    if (elapsedTime >= 80000) {
+                        this.gameFinished = true
+                        await kafka.sendRecord({
+                            id: uuid(),
+                            event: EngineEvents.GAME_NOT_PLAYABLE,
+                            playerAlias: Object.keys(this.registeredPlayers)[0],
+                        })
+                        await apiController.deleteGame(this.gameIdApi)
                     }
                 }
             })
@@ -209,17 +229,16 @@ export class EngineServer {
     public async processMessage(message: PlayerStream, kafka: KafkaUtil){
         switch (message.event){
             case PlayerEvents.NEW_POSITION:
-                if (this.gameFinished && message.engineId == this.engineId) {
+                if (this.gameFinished) {
                     await kafka.sendRecord({
                         id: uuid(),
-                        engineId: this.engineId,
                         event: EngineEvents.GAME_NOT_PLAYABLE,
                         playerAlias: `${message.playerInfo.alias}`,
                         error: 'game not playable now (not started/finished)'
                     })
                 }
                 else {
-                    if (this.connectedPlayers[message.playerInfo.alias] && message.engineId == this.engineId) await this.updateBoard(message.playerInfo, kafka)
+                    if (this.connectedPlayers[message.playerInfo.alias]) await this.updateBoard(message.playerInfo, kafka)
                 }
                 break
         }
@@ -237,7 +256,6 @@ export class EngineServer {
             case 'M': // mine, the player die and disappears from the board/map (because was previously deleted from his last position) and also is deleted in connectedPlayers map
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.DEATH,
                     playerAlias: playerInfo.alias,
                     map: this.gameBoard.board
@@ -254,7 +272,6 @@ export class EngineServer {
 
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.MOVEMENT_OK,
                     event2: EngineEvents.LEVEL_UP,
                     playerAlias: playerInfo.alias,
@@ -269,7 +286,6 @@ export class EngineServer {
 
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.MOVEMENT_OK,
                     playerAlias: playerInfo.alias,
                     map: this.gameBoard.board
@@ -296,7 +312,6 @@ export class EngineServer {
 
             await kafka.sendRecord({
                 id: uuid(),
-                engineId: this.engineId,
                 event: EngineEvents.MOVEMENT_OK,
                 event2: EngineEvents.KILL,
                 playerAlias: actualPlayer.alias,
@@ -308,7 +323,6 @@ export class EngineServer {
 
             await kafka.sendRecord({
                 id: uuid(),
-                engineId: this.engineId,
                 event: EngineEvents.DEATH,
                 playerAlias: attackedPlayer.alias
             })
@@ -318,7 +332,6 @@ export class EngineServer {
                 // WINNER:
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.KILL,
                     playerAlias: attackedPlayer.alias
                 })
@@ -328,7 +341,6 @@ export class EngineServer {
 
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.DEATH,
                     playerAlias: actualPlayer.alias
                 })
@@ -338,7 +350,6 @@ export class EngineServer {
 
                 await kafka.sendRecord({
                     id: uuid(),
-                    engineId: this.engineId,
                     event: EngineEvents.MOVEMENT_OK,
                     event2: EngineEvents.TIE,
                     map: this.gameBoard.board,

@@ -18,8 +18,6 @@ export abstract class CommonPlayer {
 
     public gameBoard: GameBoard = new GameBoard()
 
-    public engineId: string = ''
-
     constructor(
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
@@ -39,7 +37,7 @@ export abstract class CommonPlayer {
 
     // starts the kafka usage
     public async joinGame(guest?: boolean) {
-        if (guest) this.playerInfo.alias = 'guest' + uuid
+        if (guest) this.playerInfo.alias = 'guest' + uuid()
 
         const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
         await kafka.producer.connect()
@@ -48,7 +46,6 @@ export abstract class CommonPlayer {
 
         await kafka.sendRecord({
             id: uuid(),
-            engineId: this.engineId,
             event: PlayerEvents.INITIAL_MESSAGE,
             playerInfo: this.playerInfo
         })
@@ -65,12 +62,11 @@ export abstract class CommonPlayer {
                             // i want to make sure all the messages are read only one time
                             if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
                                 //console.log(engineMessage)
-                                if (this.startedGame && this.engineId == engineMessage.id) {
+                                if (this.startedGame) {
                                     await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                                 }
                                 else {
                                     if (engineMessage.event === EngineEvents.GAME_STARTED) {
-                                        this.engineId = engineMessage.id
                                         // we will process the kafka messages after receiving this event from the engine
                                         this.startedGame = true
                                         console.log('THE GAME HAS JUST STARTED')
@@ -111,6 +107,10 @@ export abstract class CommonPlayer {
     public async processMessage(message: EngineStream){
         switch (message.event){
 
+            case EngineEvents.WINNER: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
+                console.log(message.playerAlias, ': You are the winner!')
+                process.exit(0)
+
             case EngineEvents.GAME_NOT_PLAYABLE: // when someone try to send a NEW_POSITION event and the game hasnt started or already finished
                 console.log(message.playerAlias, ': ', message.error)
                 process.exit(0)
@@ -130,17 +130,14 @@ export abstract class CommonPlayer {
                     switch (message.event2) { // se podria eliminar este switch y direcrtamente mostrar el mapa
                         case EngineEvents.KILL:
                             console.log('You killed someone')
-
                             break
             
                         case EngineEvents.LEVEL_UP:
                             this.playerInfo.baseLevel++
-
                             break
 
                         case EngineEvents.TIE:
                             if (message.position) this.playerInfo.position = message.position
-
                             break
             
                     }
