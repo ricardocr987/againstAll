@@ -15,9 +15,11 @@ export abstract class CommonPlayer {
     // Flags to identify the phase of the game
     public startedGame = false
     public finishedGame = false
+    public joined = false
 
     public gameBoard: GameBoard = new GameBoard()
 
+    public engineId: string = ''
     constructor(
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
@@ -43,12 +45,6 @@ export abstract class CommonPlayer {
         await kafka.producer.connect()
         await kafka.consumer.connect()
         await kafka.consumer.subscribe({ topic: 'engineMessages' })
-
-        await kafka.sendRecord({
-            id: uuid(),
-            event: PlayerEvents.INITIAL_MESSAGE,
-            playerInfo: this.playerInfo
-        })
         
         console.log('Wating for the game to start...')
 
@@ -66,9 +62,18 @@ export abstract class CommonPlayer {
                                     await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                                 }
                                 else {
-                                    if (engineMessage.event === EngineEvents.GAME_STARTED) {
+                                    if (engineMessage.event === EngineEvents.GAME_STARTED && !this.joined) {
+                                        this.engineId = engineMessage.engineId
+                                        await kafka.sendRecord({
+                                            id: uuid(),
+                                            engineId: this.engineId,
+                                            timestamp: Date.now(),
+                                            event: PlayerEvents.INITIAL_MESSAGE,
+                                            playerInfo: this.playerInfo
+                                        })
                                         // we will process the kafka messages after receiving this event from the engine
                                         this.startedGame = true
+                                        this.joined = true
                                         console.log('THE GAME HAS JUST STARTED')
                                         if (engineMessage.map) {
                                             this.gameBoard.setBoard(engineMessage.map)
