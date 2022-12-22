@@ -21,16 +21,18 @@ export const useGames = (): GamePayload[] => {
                 } else {
                     setGames(
                         querySnapshot.docs.map((doc) => {
-                            const data: string[] = doc.data().map
+                            const data = doc.data()
                             const map: string[][] = new Array(20).fill(null).map(() => new Array(20).fill(null))
-                            for (let i = 0; i < data.length; i++) {
+                            for (let i = 0; i < data.map.length; i++) {
                                 const row = Math.floor(i / 20);
                                 const col = i % 20;
-                                map[row][col] = data[i];
+                                map[row][col] = data.map[i];
                             }
                             return {
                                 id: doc.id,
                                 map: map,
+                                cities: data.cities,
+                                temperatures: data.temperatures
                             } as GamePayload
                         }),
                     );

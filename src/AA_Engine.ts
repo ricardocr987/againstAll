@@ -23,6 +23,7 @@ export class EngineServer {
     public gameBoard: GameBoard = new GameBoard()
     public temperatureBoard: GameBoard = new GameBoard()
     public cities: string[] = config.CITIES?.split(',') || ['Napoles', 'London', 'Prague', 'Liverpool']
+    public temperatures: number[] = []
     
     public io: Server = new Server() // server instance
 
@@ -69,7 +70,7 @@ export class EngineServer {
         this.gameBoard.modifyBoard(playerInfo.alias, playerInfo.position)
 
         const map = this.gameBoard.matrixToVector()
-        const apiResponse = await apiController.updateGame(this.gameIdApi, { map })
+        const apiResponse = await apiController.updateGame(this.gameIdApi, ({map: map, cities: this.cities, temperatures: this.temperatures}))
         console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
 
     }
@@ -149,7 +150,7 @@ export class EngineServer {
         if (!this.gameBoard.filledBoard) {
             this.gameBoard.fillBoard()
             const map = this.gameBoard.matrixToVector()
-            const apiResponse = await apiController.createGame({map})
+            const apiResponse = await apiController.createGame({map: map, cities: this.cities, temperatures: this.temperatures})
             console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
             this.gameIdApi = apiResponse.data.id
         }
@@ -273,7 +274,7 @@ export class EngineServer {
                 if (this.connectedPlayers[newPositionContent]) await this.decideWinner(playerInfo, this.connectedPlayers[newPositionContent], kafka, previousPosition, newPosition)
         }
         const map = this.gameBoard.matrixToVector()
-        const apiResponse = await apiController.updateGame(this.gameIdApi, {map})
+        const apiResponse = await apiController.updateGame(this.gameIdApi, ({map: map, cities: this.cities, temperatures: this.temperatures}))
         console.log(`API Response status: ${apiResponse.status}, message: ${apiResponse.message}`)
     }
 
@@ -343,6 +344,7 @@ export class EngineServer {
                 // Define the API endpoint
                 const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${config.API_KEY_WEATHER}`)
                 this.cityInfo[city] = (response.data.main.temp - 273.15)
+                this.temperatures.push(response.data.main.temp - 273.15)
             } catch (error) {
                 console.error(error)
             }

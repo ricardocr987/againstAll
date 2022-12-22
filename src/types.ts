@@ -88,6 +88,8 @@ export type RegistryPlayerPayload = {
 
 export type GameMapPayload = {
     map: string[]
+    cities?: string[]
+    temperatures?: number[]
 }
 
 export type RegistryEventPayload = {

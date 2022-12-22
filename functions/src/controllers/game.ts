@@ -5,12 +5,14 @@ import { Game, GameRequest } from '../types'
 const gameCollection = 'games'
 
 const createGame = async (req: GameRequest, res: Response) => {
-    const { map } = req.body
+    const { map, cities, temperatures } = req.body
     try {
         const game = db.collection(gameCollection).doc()
         const gameObject = {
             id: game.id,
             map,
+            cities,
+            temperatures
         }
     
         await game.set(gameObject)
@@ -35,7 +37,7 @@ const createGame = async (req: GameRequest, res: Response) => {
   }
   
   const updateGame = async (req: GameRequest, res: Response) => {
-    const { body: { map }, params: { gameId } } = req
+    const { body: { map, cities, temperatures }, params: { gameId } } = req
   
     try {
         const game = db.collection(gameCollection).doc(gameId)
@@ -44,6 +46,8 @@ const createGame = async (req: GameRequest, res: Response) => {
         const gameObject = {
             id: gameId,
             map: map || currentData.map,
+            cities: cities || currentData.cities,
+            temperatures: temperatures || currentData.temperatures,
         }
     
         await game.set(gameObject).catch(error => {

@@ -10,6 +10,8 @@ export type PlayerRequest = {
 
 export type Game = {
     map: string[],
+    cities: string[],
+    temperatures: number[]
 }
 
 export type GameRequest = {

@@ -9,8 +9,9 @@ function App(): JSX.Element {
     <div className='app'>
       { games.length > 0 ? (
             games.map((game, index) => (
-              <Board board={game.map} key={index}/>
+              <Board board={game.map} cities={game.cities} temperatures={game.temperatures} key={index}/>
             ))
+            
         ) : (
           <>
             No active games

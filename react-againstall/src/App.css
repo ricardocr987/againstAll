@@ -1,6 +1,3 @@
 .app {
-    justify-content: center;
-    align-content: center;
-    align-items: center;
-    display: flex;
+    padding-left: 400px;
 }
