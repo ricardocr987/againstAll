@@ -343,8 +343,9 @@ export class EngineServer {
             try {
                 // Define the API endpoint
                 const response = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${config.API_KEY_WEATHER}`)
-                this.cityInfo[city] = (response.data.main.temp - 273.15)
-                this.temperatures.push(response.data.main.temp - 273.15)
+                const temperature = Math.floor(response.data.main.temp - 273.15)
+                this.cityInfo[city] = temperature
+                this.temperatures.push(temperature)
             } catch (error) {
                 console.error(error)
             }
