@@ -18,6 +18,8 @@ export abstract class CommonPlayer {
 
     public gameBoard: GameBoard = new GameBoard()
 
+    public engineId: string = ''
+
     constructor(
         public KAFKA_HOST: string,
         public KAFKA_PORT: number,
@@ -36,7 +38,9 @@ export abstract class CommonPlayer {
     }
 
     // starts the kafka usage
-    public async joinGame() {
+    public async joinGame(guest?: boolean) {
+        if (guest) this.playerInfo.alias = 'guest' + uuid
+
         const kafka = new KafkaUtil(this.playerInfo.alias, 'player', 'engineMessages') // it creates consumer and producer instances and is able to send messages to the corresponding topic
         await kafka.producer.connect()
         await kafka.consumer.connect()
@@ -44,6 +48,7 @@ export abstract class CommonPlayer {
 
         await kafka.sendRecord({
             id: uuid(),
+            engineId: this.engineId,
             event: PlayerEvents.INITIAL_MESSAGE,
             playerInfo: this.playerInfo
         })
@@ -60,11 +65,12 @@ export abstract class CommonPlayer {
                             // i want to make sure all the messages are read only one time
                             if (!this.messagesRead.includes(engineMessage.id) && this.isEngineStreamReceiver(engineMessage)) { // only matters if engine write the alias of the player or if it is for all players
                                 //console.log(engineMessage)
-                                if (this.startedGame) {
+                                if (this.startedGame && this.engineId == engineMessage.id) {
                                     await this.processMessage(engineMessage) // process the message from kafka cluster that was sent by the engine
                                 }
                                 else {
                                     if (engineMessage.event === EngineEvents.GAME_STARTED) {
+                                        this.engineId = engineMessage.id
                                         // we will process the kafka messages after receiving this event from the engine
                                         this.startedGame = true
                                         console.log('THE GAME HAS JUST STARTED')

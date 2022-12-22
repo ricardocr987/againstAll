@@ -63,6 +63,7 @@ export type UnionStream = PlayerStream | EngineStream
 // Kafka Player Stream
 export type PlayerStream = {
     id: string
+    engineId: string
     event: PlayerEvents // event type
     playerInfo: PlayerInfo // all player info
 }
@@ -70,6 +71,7 @@ export type PlayerStream = {
 // Kafka EngineStream
 export type EngineStream = {
     id: string
+    engineId: string
     event: EngineEvents // event type
     event2?: EngineEvents // secondary event type, MOVEMENT_OK could include another event (KILL, DEATH, etc.)
     playerAlias?: string // player alias who will receive the stream (? means that could be undefined)

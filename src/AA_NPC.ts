@@ -17,6 +17,7 @@ export class NPC extends CommonPlayer {
 
         const event: PlayerStream = {
             id: uuid(),
+            engineId: this.engineId,
             event: PlayerEvents.NEW_POSITION,
             playerInfo: this.playerInfo
         }

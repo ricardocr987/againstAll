@@ -16,7 +16,7 @@ function main() {
 main()
 
 export const kafkaConfig = {
-    brokers: [`${config.KAFKA_HOST}:9092`],
+    brokers: [`${config.KAFKA_HOST}:${config.KAFKA_PORT}`],
     connectionTimeout: 20000, // time in milliseconds to wait for a successful connection
     requestTimeout: 20000, // '' for a request
     sessionTimeout: 20000,

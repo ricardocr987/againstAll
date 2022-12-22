@@ -24,4 +24,6 @@
 6. npm run start:registry -> ejecuta el codigo transpilado de registry
 7. npm run start:engine
 8. npm run start:player
+9. cd react-againstall -> front end
+10. npm i && npm run start -> install dependencies and run localhost:3000
 
